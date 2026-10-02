@@ -48,6 +48,14 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - `docs/ROTAS.md` com todas as páginas, REST e procedures.
 - Verificado: 35 testes, tipos de cliente e servidor, build, e navegador passando por todas as páginas como visitante, investidor e admin.
 
+## Sessão 04 · 02/10/2026 · deploy no Render e login com Google
+
+- Render (workspace michel's workspace): web `riorendefacil` (srv-davtf2m0tbcc73fbbthg, free, Ohio, https://riorendefacil.onrender.com) e Postgres `riorendefacil-db` (dpg-davteqs9v7es7394n7c0-a, free, expira 01/11/2026). Build ok. Boot dependia de DATABASE_URL, cadastrada pelo Michel no painel (primeira tentativa com senha errada).
+- Corrigido: no pacote `dist/index.js` a raiz do projeto era calculada um nível acima; agora `raizDoProjeto()` sobe até o package.json. HEAD nas páginas. Testado contra Postgres local com o pacote de produção.
+- Login com Google no formato do MecProAI (mesmas rotas, `GOOGLE_CALLBACK_URL` opcional, retorno à página de origem), mantendo `state` aleatório em cookie. Tela de entrada com Google como opção principal e e-mail como alternativa.
+- OAuth client criado pelo Michel no projeto Google Cloud `megaprop-452515`, modo Testing. Pendências: GOOGLE_CLIENT_ID/SECRET no Render, trocar o secret (foi colado no chat), ajustar nome do app na tela de consentimento, adicionar test users ou publicar.
+- 38 testes, incluindo o fluxo completo do Google com respostas simuladas.
+
 ## Pendências
 
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.

@@ -281,3 +281,84 @@ test("raiz do projeto é a mesma no fonte e no pacote dist/", async () => {
   assert.equal(raizDoProjeto(path.join(r, "server/_core")), r);
   assert.equal(raizDoProjeto(path.join(r, "dist")), r);
 });
+
+// ─── Login com Google (respostas do Google simuladas) ────────────────────────
+
+test("Google: destinoSeguro só aceita caminho interno", async () => {
+  const { destinoSeguro } = await import("../_core/oauthGoogle");
+  assert.equal(destinoSeguro("/trilha/riscos"), "/trilha/riscos");
+  assert.equal(destinoSeguro("https://malicioso.com"), null);
+  assert.equal(destinoSeguro("//malicioso.com"), null);
+  assert.equal(destinoSeguro("/\\malicioso.com"), null);
+  assert.equal(destinoSeguro("/api/auth/logout"), null);
+  assert.equal(destinoSeguro(undefined), null);
+});
+
+test("Google: fluxo completo cria conta, grava sessão e volta para a página de origem", async () => {
+  const { ENV } = await import("../_core/env");
+  ENV.googleClientId = "cliente-teste.apps.googleusercontent.com";
+  ENV.googleClientSecret = "segredo-teste";
+
+  const fetchReal = globalThis.fetch;
+  let codigoUsado = "";
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const u = String(url);
+    if (u === "https://oauth2.googleapis.com/token") {
+      const corpo = new URLSearchParams(String(init?.body));
+      codigoUsado = corpo.get("code") ?? "";
+      if (codigoUsado === "codigo-velho") return new Response(JSON.stringify({ error: "invalid_grant" }), { status: 400 });
+      assert.equal(corpo.get("redirect_uri"), `${ENV.appUrl}/api/auth/google/callback`);
+      return new Response(JSON.stringify({ access_token: "tk" }), { status: 200 });
+    }
+    if (u === "https://openidconnect.googleapis.com/v1/userinfo") {
+      return new Response(JSON.stringify({ sub: "g-123", email: "Google.User@Gmail.com", email_verified: true, name: "Google User" }));
+    }
+    return fetchReal(url as string, init);
+  }) as typeof fetch;
+
+  const server = criarApp().listen(0);
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    // 1. início: redireciona para o Google com state e grava cookie
+    const ini = await fetchReal(`${base}/api/auth/google?voltar=${encodeURIComponent("/trilha/riscos")}`, { redirect: "manual" });
+    assert.equal(ini.status, 302);
+    const destinoGoogle = new URL(ini.headers.get("location")!);
+    assert.equal(destinoGoogle.origin + destinoGoogle.pathname, "https://accounts.google.com/o/oauth2/v2/auth");
+    const state = destinoGoogle.searchParams.get("state")!;
+    assert.ok(state.length > 20);
+    assert.equal(destinoGoogle.searchParams.get("redirect_uri"), `${ENV.appUrl}/api/auth/google/callback`);
+    const cookieEstado = ini.headers.get("set-cookie")!.split(";")[0]!;
+
+    // 2. retorno com state errado é recusado
+    const forjado = await fetchReal(`${base}/api/auth/google/callback?code=x&state=outro`, { headers: { cookie: cookieEstado }, redirect: "manual" });
+    assert.equal(forjado.headers.get("location"), "/entrar?erro=estado_invalido");
+
+    // 3. código expirado vira mensagem específica
+    const velho = await fetchReal(`${base}/api/auth/google/callback?code=codigo-velho&state=${state}`, { headers: { cookie: cookieEstado }, redirect: "manual" });
+    assert.equal(velho.headers.get("location"), "/entrar?erro=google_expirado");
+
+    // 4. retorno certo: cria conta, grava sessão e volta para /trilha/riscos
+    const ok = await fetchReal(`${base}/api/auth/google/callback?code=codigo-bom&state=${state}`, { headers: { cookie: cookieEstado }, redirect: "manual" });
+    assert.equal(ok.headers.get("location"), "/trilha/riscos");
+    const sessao = ok.headers.get("set-cookie")!.split(",").map((c) => c.trim()).find((c) => c.startsWith("rrf_sessao="))!;
+    assert.ok(sessao, "cookie de sessão gravado");
+    const me = (await (await fetchReal(`${base}/api/auth/me`, { headers: { cookie: sessao.split(";")[0]! } })).json()) as { email: string; papel: string };
+    assert.equal(me.email, "google.user@gmail.com");
+    assert.equal(me.papel, "investidor");
+    const [u] = await db.select().from(usuarios).where(eq(usuarios.email, "google.user@gmail.com"));
+    assert.equal(u!.googleSub, "g-123");
+
+    // 5. cancelar na tela do Google
+    const cancel = await fetchReal(`${base}/api/auth/google/callback?error=access_denied`, { redirect: "manual" });
+    assert.equal(cancel.headers.get("location"), "/entrar?erro=google_cancelado");
+
+    // 6. tRPC informa que o Google está ligado (mostra o botão)
+    const metodos = (await (await fetchReal(`${base}/api/trpc/auth.metodos`)).json()) as { result: { data: { json: { google: boolean } } } };
+    assert.equal(metodos.result.data.json.google, true);
+  } finally {
+    server.close();
+    globalThis.fetch = fetchReal;
+    ENV.googleClientId = "";
+    ENV.googleClientSecret = "";
+  }
+});

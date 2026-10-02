@@ -41,8 +41,8 @@ Sem login, quem abre uma página protegida vai para `/entrar?voltar=...`. Logado
 | `GET /api/auth/me` | `_core/authRoutes.ts` | usuário da sessão ou `null` (usado pelo `useAuth`) |
 | `POST /api/auth/logout` | `_core/authRoutes.ts` | apaga o cookie de sessão |
 | `GET /api/auth/link?t=` | `_core/linkAcesso.ts` | consome o link mágico, grava sessão, redireciona |
-| `GET /api/auth/google` | `_core/oauthGoogle.ts` | inicia login com Google (state em cookie) |
-| `GET /api/auth/google/callback` | `_core/oauthGoogle.ts` | conclui login com Google |
+| `GET /api/auth/google?voltar=/caminho` | `_core/oauthGoogle.ts` | inicia login com Google; `state` aleatório e destino em cookie httpOnly |
+| `GET /api/auth/google/callback` | `_core/oauthGoogle.ts` | confere o `state`, cria ou encontra a conta, grava sessão e volta para `voltar` (só caminhos internos) |
 | `POST /api/cron/lembretes` | `_core/cronRouter.ts` | lembretes de lead parado e trilha abandonada. Exige `Authorization: Bearer CRON_SECRET` |
 | `POST /api/client-error` | `_core/index.ts` | recebe erro do ErrorBoundary e grava no log (20/min) |
 | `GET /sitemap.xml` | `_core/seo.ts` | páginas públicas e artigos |

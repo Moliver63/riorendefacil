@@ -16,7 +16,7 @@ export default function ProtectedRoute({ children, roles }: ProtectedRouteProps)
   const { user, isLoading } = useAuth();
 
   if (isLoading) return <div className="carregando-tela">Carregando…</div>;
-  if (!user) return <Redirect to={`/entrar?voltar=${encodeURIComponent(window.location.pathname)}`} />;
+  if (!user) return <Redirect to={`/entrar?voltar=${encodeURIComponent(window.location.pathname + window.location.search)}`} />;
   if (roles?.length && !roles.includes(user.papel)) return <Redirect to={inicioDoPapel(user.papel)} />;
   return <>{children}</>;
 }

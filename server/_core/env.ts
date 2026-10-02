@@ -42,6 +42,8 @@ export const ENV = {
 
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  /** opcional: força a URL de retorno (padrão: {APP_URL}/api/auth/google/callback) */
+  googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL ?? "",
 
   resendApiKey: process.env.RESEND_API_KEY ?? "",
   emailRemetente: process.env.EMAIL_REMETENTE ?? "RioRendeFácil <contato@riorendefacil.com.br>",
