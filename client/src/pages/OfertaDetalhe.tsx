@@ -4,7 +4,7 @@ import { Seo } from "@/components/SEO";
 import { useAuth } from "@/hooks/useAuth";
 import { trpc } from "@/lib/trpc";
 import { formatarBRL, formatarPct, tetoDaFaixa, aliquotaIR, type Faixa } from "~shared/finance";
-import { formatarCobertura } from "~shared/lastroGraos";
+import { PRAZOS_CONTRATO, formatarCobertura } from "~shared/lastroGraos";
 import { MolduraOferta } from "./Ofertas";
 import {
   BarraAlocacao,
@@ -29,7 +29,7 @@ function CaixaReserva({ f, minhaReserva }: { f: Ficha; minhaReserva: Reserva }) 
   const utils = trpc.useUtils();
   const investidor = user?.papel === "investidor";
   const pend = trpc.investidor.pendencias.useQuery(undefined, { enabled: investidor });
-  const prazos = Array.from(new Set([f.prazoMinimoMeses, 6, 12, 18, 24, 36].filter((p) => p >= f.prazoMinimoMeses && p * 30 >= f.carenciaPrincipalDias))).sort((a, b) => a - b);
+  const prazos = PRAZOS_CONTRATO.filter((p) => p >= f.prazoMinimoMeses && p * 30 >= f.carenciaPrincipalDias);
   const [valor, setValor] = useState(minhaReserva ? (minhaReserva.valorCentavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "");
   const [prazo, setPrazo] = useState(minhaReserva?.prazoMeses ?? prazos[0] ?? 12);
   const recarregar = () => { void utils.investidor.oferta.invalidate(); void utils.investidor.reservas.invalidate(); };
@@ -128,9 +128,9 @@ export default function OfertaDetalhe({ id }: { id: number }) {
             <dl className="ficha-kpis">
               <div><dt>Taxa</dt><dd className="num">{f.taxaDesde === f.taxaAte ? formatarPct(f.taxaAte) : `${formatarPct(f.taxaDesde)} a ${formatarPct(f.taxaAte)}`}<small> a.m.</small></dd></div>
               <div><dt>Aplicação mínima</dt><dd className="num">{brlCurto(f.aplicacaoMinimaCentavos)}</dd></div>
-              <div><dt>Prazo mínimo</dt><dd className="num">{f.prazoMinimoMeses} meses</dd></div>
+              <div><dt>Prazos</dt><dd className="num">{PRAZOS_CONTRATO.filter((p) => p >= f.prazoMinimoMeses).join(", ")} <small>meses</small></dd></div>
               <div><dt>Resgate do rendimento</dt><dd className="num">D+{f.prazoResgateDias}</dd></div>
-              <div><dt>Carência do principal</dt><dd className="num">{f.carenciaPrincipalDias} dias</dd></div>
+              <div><dt>Principal</dt><dd className="num">no vencimento<small> · recompra pela Rio</small></dd></div>
               <div><dt>Cobertura</dt><dd className="num">{formatarCobertura(p.cobertura)}</dd></div>
             </dl>
             <p className="ficha-tese">{f.tese}</p>

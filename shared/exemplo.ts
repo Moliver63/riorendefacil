@@ -5,9 +5,10 @@
 import type { Faixa } from "./finance";
 
 export const FAIXAS_EXEMPLO: Faixa[] = [
-  { minimoCentavos: 10_000_00, prazoMinimoMeses: 6, taxaMensalTeto: 0.011 },
-  { minimoCentavos: 100_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.0125 },
-  { minimoCentavos: 500_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.014 },
+  { minimoCentavos: 10_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.011 },
+  { minimoCentavos: 10_000_00, prazoMinimoMeses: 24, taxaMensalTeto: 0.012 },
+  { minimoCentavos: 10_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.013 },
+  { minimoCentavos: 500_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.014 },
 ];
 
 export const OFERTA_EXEMPLO = {

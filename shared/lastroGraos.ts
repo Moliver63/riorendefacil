@@ -7,6 +7,10 @@
  *  3. Garantias: CCBs com imóvel, que formam o índice de cobertura.
  */
 
+/** Prazos dos contratos. O principal é liquidado no vencimento com a recompra dos títulos pela Rio. */
+export const PRAZOS_CONTRATO = [12, 24, 36] as const;
+export const prazoValido = (meses: number) => (PRAZOS_CONTRATO as readonly number[]).includes(meses);
+
 export const GRAOS = ["soja", "milho", "sorgo"] as const;
 export type Grao = (typeof GRAOS)[number];
 export const GRAO_ROTULO: Record<Grao, string> = { soja: "Soja", milho: "Milho", sorgo: "Sorgo" };

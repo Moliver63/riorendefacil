@@ -23,6 +23,7 @@ import {
   totalResgatado,
 } from "../contratoService";
 import { exigirCoberturaParaNovoPrincipal, lancar } from "../lastroService";
+import { prazoValido } from "../../shared/lastroGraos";
 import { emailAporteConfirmado, emailContratoGerado, emailResgatePago, emailResgateRecusado, enviarEmail } from "./email";
 
 async function emailDoInvestidor(investidorId: number) {
@@ -154,7 +155,7 @@ export const investimentosRoutes = {
           investidorId: z.number().int(),
           ofertaId: z.number().int(),
           principalCentavos: z.number().int().min(100_00),
-          prazoMeses: z.number().int().min(1).max(60),
+          prazoMeses: z.number().int().refine(prazoValido, "O prazo deve ser de 12, 24 ou 36 meses."),
           observacoes: z.string().max(2000).optional(),
           reservaId: z.number().int().optional(),
         }),

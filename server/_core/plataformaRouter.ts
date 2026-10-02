@@ -8,6 +8,7 @@ import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
 import { REFERENCIAS_MERCADO } from "../../shared/mercado";
 import { LASTRO_EXEMPLO, type ItemLastro } from "../../shared/exemplo";
 import { ficha, vitrine } from "../fichaOferta";
+import { prazoValido } from "../../shared/lastroGraos";
 import { compararLiquido, proximaFaixa, simular, tetoDaFaixa, type Faixa } from "../../shared/finance";
 
 const emissor = () => carregarEmissor(process.env);
@@ -79,7 +80,7 @@ export const simuladorRouter = router({
     .input(
       z.object({
         aporteCentavos: z.number().int().min(100_00).max(100_000_000_00),
-        prazoMeses: z.number().int().min(2).max(36),
+        prazoMeses: z.number().int().refine(prazoValido, "O prazo deve ser de 12, 24 ou 36 meses."),
       }),
     )
     .query(async ({ input }) => {

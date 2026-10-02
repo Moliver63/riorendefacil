@@ -37,10 +37,10 @@ export type EmissorParceiro = {
  * Substituir pelo quadro oficial do parceiro.
  */
 export const FAIXAS_EXEMPLO: Faixa[] = [
-  { minimoCentavos: 1_000_00, prazoMinimoMeses: 2, taxaMensalTeto: 0.012 },
-  { minimoCentavos: 30_000_00, prazoMinimoMeses: 2, taxaMensalTeto: 0.013 },
-  { minimoCentavos: 100_000_00, prazoMinimoMeses: 6, taxaMensalTeto: 0.014 },
-  { minimoCentavos: 500_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.015 },
+  { minimoCentavos: 10_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.011 },
+  { minimoCentavos: 10_000_00, prazoMinimoMeses: 24, taxaMensalTeto: 0.012 },
+  { minimoCentavos: 10_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.013 },
+  { minimoCentavos: 500_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.014 },
 ];
 
 export function carregarEmissor(env: Record<string, string | undefined> = {}): EmissorParceiro {

@@ -4,6 +4,7 @@ import { Seo } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import { formatarBRL, formatarPct, tetoDaFaixa, type Faixa } from "~shared/finance";
 import { formatarCpf } from "~shared/cadastro";
+import { PRAZOS_CONTRATO } from "~shared/lastroGraos";
 
 const data = (iso: string | Date | null | undefined) => (iso ? new Date(typeof iso === "string" && iso.length === 10 ? iso + "T12:00:00" : iso).toLocaleDateString("pt-BR") : "–");
 const reais = (v: string) => Math.round(Number(v.replace(/\./g, "").replace(",", ".")) * 100) || 0;
@@ -69,8 +70,10 @@ function NovoContrato({ investidorId, apto, motivo, reserva }: { investidorId: n
       <label className="campo-form">Valor do aporte (R$)
         <input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" placeholder="100.000,00" required />
       </label>
-      <label className="campo-form">Prazo (meses)
-        <input value={prazo} onChange={(e) => setPrazo(e.target.value.replace(/\D/g, ""))} inputMode="numeric" required />
+      <label className="campo-form">Prazo
+        <select value={prazo} onChange={(e) => setPrazo(e.target.value)}>
+          {PRAZOS_CONTRATO.map((p) => <option key={p} value={p}>{p} meses</option>)}
+        </select>
       </label>
       <div className="novo-contrato__taxa">
         <span>Taxa pela faixa</span>

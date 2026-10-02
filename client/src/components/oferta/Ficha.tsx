@@ -184,7 +184,7 @@ export function CardOferta({ f }: { f: Ficha }) {
       <dl className="card-oferta__num">
         <div><dt>Taxa</dt><dd className="num">{f.taxaDesde === f.taxaAte ? formatarPct(f.taxaAte) : `${formatarPct(f.taxaDesde)} a ${formatarPct(f.taxaAte)}`} <small>a.m.</small></dd></div>
         <div><dt>Mínimo</dt><dd className="num">{brlCurto(f.aplicacaoMinimaCentavos)}</dd></div>
-        <div><dt>Prazo</dt><dd className="num">{f.prazoMinimoMeses}+ meses</dd></div>
+        <div><dt>Prazos</dt><dd className="num">12, 24 ou 36 <small>meses</small></dd></div>
         <div><dt>Cobertura</dt><dd className="num">{formatarCobertura(f.posicao.cobertura)}</dd></div>
       </dl>
       {alvo ? (
@@ -199,8 +199,8 @@ export function CardOferta({ f }: { f: Ficha }) {
 }
 
 export const RISCOS_GRAOS = [
-  { t: "Preço e quebra", d: "O preço do grão pode cair entre a compra e a venda, e pode haver perda de peso ou qualidade no transporte." },
-  { t: "Comprador", d: "O comprador pode atrasar ou não pagar. O recebível e as garantias reduzem a perda, mas cobrar e executar leva tempo." },
-  { t: "Garantias", d: "Imóveis podem valer menos na hora da execução. Por isso só uma parte da avaliação conta como elegível." },
-  { t: "Sem FGC e liquidez do principal", d: "Não há cobertura do Fundo Garantidor de Créditos. O principal fica até o vencimento; só o rendimento pode ser resgatado antes." },
+  { t: "Sem FGC", d: "Este investimento não tem cobertura do Fundo Garantidor de Créditos. A proteção vem da garantia da própria Rio, das CCBs lastreadas em imóveis, da conta vinculada e do seguro das cargas." },
+  { t: "Risco da Rio", d: "A garantia e a recompra dos títulos dependem da capacidade de pagamento da Rio. Se ela falhar, as garantias em imóveis são executadas, o que leva tempo e pode não recuperar tudo." },
+  { t: "Preço e comprador", d: "O preço do grão pode cair entre a compra e a venda, e um comprador pode atrasar. A carga tem seguro no transporte, mas oscilação de preço e atraso não são cobertos pelo seguro." },
+  { t: "Liquidez do principal", d: "O principal fica até o vencimento, em 12, 24 ou 36 meses, quando a Rio recompra os títulos. Antes disso, só o rendimento pode ser resgatado." },
 ];

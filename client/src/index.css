@@ -1609,3 +1609,8 @@ textarea { font: 400 15px/1.4 var(--sans); }
 .ficha__reserva { border-left: 3px solid var(--cobre); }
 .cartao-pool .status--neutro { background: rgb(255 255 255 / 0.12); color: var(--sobre-tinta); }
 .aviso:not(.aviso--erro):not(.aviso--ok) { background: var(--areia-2); color: var(--tinta-3); }
+.campo__rot { font-size: 14px; color: var(--sobre-tinta-suave); }
+.prazos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.prazos button { min-height: 44px; border-radius: var(--r-sm); border: 1px solid rgb(233 240 236 / 0.25); background: transparent; color: var(--sobre-tinta); font: 600 15px var(--sans); cursor: pointer; }
+.prazos button:hover { border-color: var(--sobre-tinta); }
+.prazos button.on { background: var(--cobre); border-color: var(--cobre); color: #fff; }

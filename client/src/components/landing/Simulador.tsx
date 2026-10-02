@@ -1,3 +1,4 @@
+import { PRAZOS_CONTRATO } from "~shared/lastroGraos";
 import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatarBRL, formatarPct } from "~shared/finance";
@@ -55,13 +56,15 @@ export function Simulador({ onSimular }: { onSimular?: (s: { aporte: number; pra
 
         <div className="campo">
           <div className="campo__topo">
-            <label htmlFor="prazo">Prazo</label>
+            <span id="prazo" className="campo__rot">Prazo</span>
             <output className="num">{prazo} meses</output>
           </div>
-          <input id="prazo" type="range" min={2} max={36} value={prazo} onChange={(e) => setPrazo(Number(e.target.value))} />
-          <div className="campo__escala">
-            <span>2</span>
-            <span>36 meses</span>
+          <div className="prazos" role="radiogroup" aria-labelledby="prazo">
+            {PRAZOS_CONTRATO.map((p) => (
+              <button key={p} type="button" role="radio" aria-checked={prazo === p} className={prazo === p ? "on" : ""} onClick={() => setPrazo(p)}>
+                {p} meses
+              </button>
+            ))}
           </div>
         </div>
 

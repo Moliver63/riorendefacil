@@ -17,16 +17,17 @@ const ETAPAS = [
 ];
 
 const RISCOS = [
-  { t: "Preço e quebra do grão", d: "O preço pode cair entre a compra e a venda, e pode haver perda de peso ou qualidade no transporte. Isso reduz a margem da operação." },
-  { t: "Comprador que não paga", d: "Um comprador pode atrasar ou não pagar. O recebível e as garantias reduzem a perda, mas cobrar e executar leva tempo." },
-  { t: "Sem FGC", d: "Diferente de CDB e poupança, este investimento não tem cobertura do Fundo Garantidor de Créditos." },
-  { t: "Liquidez do principal", d: "O valor aportado fica até o vencimento do contrato. Só o rendimento pode ser resgatado antes, com pagamento em até 7 dias." },
+  { t: "Sem FGC", d: "Diferente de CDB e poupança, este investimento não tem cobertura do Fundo Garantidor de Créditos. A proteção vem da garantia da Rio, das CCBs com imóvel, da conta vinculada e do seguro das cargas." },
+  { t: "Risco da Rio", d: "A garantia e a recompra dos títulos dependem da saúde financeira da Rio. Se ela falhar, os imóveis em garantia são executados, o que leva tempo e pode não cobrir 100%." },
+  { t: "Preço e comprador", d: "O preço do grão pode cair entre a compra e a venda, e um comprador pode atrasar. O seguro cobre a carga no transporte, não a oscilação de preço nem o atraso." },
+  { t: "Liquidez do principal", d: "O principal fica até o vencimento, em 12, 24 ou 36 meses, quando a Rio recompra os títulos. Antes disso, só o rendimento pode ser resgatado, em até 7 dias." },
 ];
 
 const FAQ = [
   { p: "O RioRendeFácil é um banco?", r: "Não. Somos a tecnologia: ofertas, cadastro, painel e documentos. A Rio faz a compra e a venda dos grãos, e o emissor parceiro estrutura a oferta. O dinheiro fica em conta vinculada, nunca com a plataforma." },
   { p: "Como sei que a operação existe?", r: "Cada operação aparece na ficha da oferta com grão, toneladas, origem, comprador, destino, valores e situação. Notas fiscais e comprovantes ficam com o emissor e a auditoria." },
-  { p: "O que protege o meu dinheiro?", r: "Três camadas: o grão comprado, o recebível da venda e as garantias em imóveis vinculadas às CCBs. A ficha mostra o índice de cobertura. Se ele cair abaixo do mínimo, novas captações e compras param até a garantia ser recomposta." },
+  { p: "O que protege o meu dinheiro?", r: "A própria Rio garante a operação com CCBs lastreadas em imóveis. O dinheiro circula só pela conta vinculada, as cargas têm seguro no transporte e, no vencimento, a Rio recompra os títulos. Não há FGC. A ficha mostra o índice de cobertura das garantias, e abaixo do mínimo novas captações e compras param." },
+  { p: "Quais são os prazos?", r: "12, 24 ou 36 meses. O rendimento pode ser resgatado antes, com pagamento em até 7 dias. O principal volta no vencimento, quando a Rio recompra os títulos." },
   { p: "Quando a Rio ganha dinheiro?", r: "Por último. Da venda do grão saem primeiro os custos, depois o principal e a remuneração dos investidores. Só o que sobra vira margem da Rio, e o sistema bloqueia retirada antes disso." },
   { p: "Preciso fazer a trilha antes de investir?", r: "Sim. São quatro módulos curtos e um questionário de perfil. Se o produto não combinar com você, avisamos antes de qualquer reserva." },
 ];
@@ -138,7 +139,7 @@ export default function Home() {
           </header>
           <ol className="lista-trilha">
             <li><span className="num">1</span>Como funciona o lastro em grãos</li>
-            <li><span className="num">2</span>Os riscos, sem rodeio</li>
+            <li><span className="num">2</span>Garantias e riscos, sem rodeio</li>
             <li><span className="num">3</span>Como ler operações e garantias</li>
             <li><span className="num">4</span>Rendimento líquido e imposto</li>
           </ol>

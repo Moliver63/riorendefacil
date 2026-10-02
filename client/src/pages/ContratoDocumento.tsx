@@ -97,7 +97,7 @@ export default function ContratoDocumento({ id }: { id: number }) {
               <tr><th>Valor aportado</th><td className="num">{formatarBRL(c.principalCentavos)}</td></tr>
               <tr><th>Remuneração</th><td className="num">{formatarPct(c.taxaMensal)} ao mês ({formatarPct(taxaAnualEquivalente(c.taxaMensal))} ao ano equivalente), rendimento pro rata dia sobre o valor aportado</td></tr>
               <tr><th>Prazo</th><td>{c.prazoMeses} meses{c.inicio ? `, de ${data(c.inicio)} a ${data(c.vencimento)}` : ", contados da confirmação do aporte"}</td></tr>
-              <tr><th>Carência do principal</th><td>{c.carenciaPrincipalDias} dias; o valor aportado é devolvido no vencimento</td></tr>
+              <tr><th>Principal</th><td>devolvido no vencimento, com a recompra dos títulos pela Rio</td></tr>
               <tr><th>Resgate do rendimento</th><td>a pedido do investidor, pago em até {c.prazoResgateDias} dias corridos, limitado ao rendimento disponível</td></tr>
               <tr><th>Conta para pagamentos</th><td>{q?.contaResgate ?? "a informar"}</td></tr>
               <tr><th>Tributação</th><td>IR retido na fonte sobre o rendimento, pela tabela regressiva (22,5% a 15% conforme o prazo)</td></tr>
@@ -117,7 +117,9 @@ export default function ContratoDocumento({ id }: { id: number }) {
             principal dos investidores, remuneração dos investidores e, por último, a margem operacional da Rio.
           </p>
           <p>
-            A oferta conta com garantias em CCBs com imóvel. Se a cobertura (garantias elegíveis divididas pelo principal
+            A Rio garante as obrigações perante o investidor por meio de CCBs lastreadas em imóveis, mantém seguro das
+            cargas durante o transporte e se compromete a recomprar os títulos do investidor no vencimento. Não há cobertura
+            do FGC. A oferta conta com garantias em CCBs com imóvel. Se a cobertura (garantias elegíveis divididas pelo principal
             captado) ficar abaixo de {Math.round(c.coberturaMinima * 100)}%, novas captações e novas operações ficam
             suspensas até a recomposição.
           </p>

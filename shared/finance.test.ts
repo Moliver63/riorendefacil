@@ -49,12 +49,14 @@ test("simulação rejeita entradas inválidas", () => {
 });
 
 test("faixas: teto e próxima faixa", () => {
-  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 500_00, 12), null);
-  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 5_000_00, 12), 0.012);
-  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 150_000_00, 3), 0.013);
-  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 150_000_00, 6), 0.014);
-  assert.equal(proximaFaixa(FAIXAS_EXEMPLO, 5_000_00, 12)?.taxaMensalTeto, 0.013);
-  assert.equal(proximaFaixa(FAIXAS_EXEMPLO, 1_000_000_00, 24), null);
+  // prazos de 12, 24 e 36 meses; mínimo de R$ 10 mil
+  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 5_000_00, 12), null);
+  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 50_000_00, 12), 0.011);
+  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 50_000_00, 24), 0.012);
+  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 50_000_00, 36), 0.013);
+  assert.equal(tetoDaFaixa(FAIXAS_EXEMPLO, 600_000_00, 36), 0.014);
+  assert.equal(proximaFaixa(FAIXAS_EXEMPLO, 50_000_00, 12)?.taxaMensalTeto, 0.012);
+  assert.equal(proximaFaixa(FAIXAS_EXEMPLO, 1_000_000_00, 36), null);
 });
 
 test("comparação usa base líquida e respeita isenção da poupança", () => {

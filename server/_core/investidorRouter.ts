@@ -11,6 +11,7 @@ import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
 import { dataPagamentoResgate, formatarBRL, formatarPct, tetoDaFaixa, type Faixa } from "../../shared/finance";
 import { alocacao } from "../lastroService";
 import { ficha } from "../fichaOferta";
+import { prazoValido } from "../../shared/lastroGraos";
 import { auditar } from "../auditoria";
 import { urlDownload } from "../storage";
 import { enviarEmail } from "./email";
@@ -340,7 +341,7 @@ export const investidorRouter = router({
    * registrados com a taxa da faixa; a equipe gera o contrato a partir dela.
    */
   reservar: investidorProcedure
-    .input(z.object({ ofertaId: z.number().int().positive(), valorCentavos: z.number().int().min(100_00), prazoMeses: z.number().int().min(1).max(60) }))
+    .input(z.object({ ofertaId: z.number().int().positive(), valorCentavos: z.number().int().min(100_00), prazoMeses: z.number().int().refine(prazoValido, "O prazo deve ser de 12, 24 ou 36 meses.") }))
     .mutation(async ({ ctx, input }) => {
       const inv = await meuInvestidor(ctx.usuario.id);
       const pend = await pendenciasDoInvestidor(inv);
