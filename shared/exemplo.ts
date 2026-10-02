@@ -5,10 +5,19 @@
 import type { Faixa } from "./finance";
 
 export const FAIXAS_EXEMPLO: Faixa[] = [
-  { minimoCentavos: 10_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.011 },
-  { minimoCentavos: 10_000_00, prazoMinimoMeses: 24, taxaMensalTeto: 0.012 },
-  { minimoCentavos: 10_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.013 },
-  { minimoCentavos: 500_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.014 },
+  // Tabela progressiva Rio (taxa mensal nominal, juros diários compostos)
+  { minimoCentavos: 1_000_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.018 },
+  { minimoCentavos: 1_000_000_00, prazoMinimoMeses: 24, taxaMensalTeto: 0.019 },
+  { minimoCentavos: 1_000_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.021 },
+  { minimoCentavos: 2_000_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.019 },
+  { minimoCentavos: 2_000_000_00, prazoMinimoMeses: 24, taxaMensalTeto: 0.02 },
+  { minimoCentavos: 2_000_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.022 },
+  { minimoCentavos: 3_000_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.02 },
+  { minimoCentavos: 3_000_000_00, prazoMinimoMeses: 24, taxaMensalTeto: 0.021 },
+  { minimoCentavos: 3_000_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.023 },
+  { minimoCentavos: 3_500_000_00, prazoMinimoMeses: 12, taxaMensalTeto: 0.021 },
+  { minimoCentavos: 3_500_000_00, prazoMinimoMeses: 24, taxaMensalTeto: 0.022 },
+  { minimoCentavos: 3_500_000_00, prazoMinimoMeses: 36, taxaMensalTeto: 0.024 },
 ];
 
 export const OFERTA_EXEMPLO = {
@@ -36,10 +45,14 @@ export const OPERACOES_EXEMPLO = [
   { codigo: "OP-0118", grao: "sorgo", status: "comprada", produtorDescricao: "Produtor rural", origemMunicipio: "Primavera do Leste", origemUf: "MT", toneladas: 700, valorCompraCentavos: 560_000_00, custosCentavos: 21_000_00, compradorTipo: null, compradorDescricao: null, destinoMunicipio: null, destinoUf: null, valorVendaCentavos: null, valorRecebidoCentavos: 0, dataCompra: "2026-09-26", vencimentoRecebimento: null, dataRecebimento: null },
 ] as const;
 
+const resgateCcb = (custo: number, meses: number) => Math.round(custo * Math.pow(1 + 0.0197 / 30, 30 * meses));
+
+/** Carteira de CCBs da Rio (exemplo): cada CCB com garantia colateral em imóvel e valor de resgate no vencimento. */
 export const GARANTIAS_EXEMPLO = [
-  { codigo: "CCB-G-01", devedorDescricao: "Área rural com benfeitorias, Sorriso/MT", garantiaTipo: "Alienação fiduciária de imóvel rural", valorCentavos: 3_000_000_00, garantiaValorCentavos: 6_200_000_00, valorElegivelCentavos: 4_960_000_00, situacao: "adimplente", registroRef: "Matrícula registrada em cartório" },
-  { codigo: "CCB-G-02", devedorDescricao: "Galpão logístico, Rondonópolis/MT", garantiaTipo: "Hipoteca de primeiro grau", valorCentavos: 2_000_000_00, garantiaValorCentavos: 3_900_000_00, valorElegivelCentavos: 3_120_000_00, situacao: "adimplente", registroRef: "Matrícula registrada em cartório" },
-  { codigo: "CCB-G-03", devedorDescricao: "Salas comerciais, Balneário Camboriú/SC", garantiaTipo: "Alienação fiduciária de imóvel urbano", valorCentavos: 1_200_000_00, garantiaValorCentavos: 2_400_000_00, valorElegivelCentavos: 1_920_000_00, situacao: "adimplente", registroRef: "Matrícula registrada em cartório" },
+  { codigo: "CCB-RIO-01", serie: "Única", dataEmissao: "2026-03-10", vencimento: "2029-03-10", devedorDescricao: "Comércio de cereais e transporte de cargas, Cuiabá/MT", garantiaTipo: "Alienação fiduciária de área rural", valorCentavos: 3_000_000_00, valorResgateCentavos: resgateCcb(3_000_000_00, 36), garantiaValorCentavos: 6_600_000_00, valorElegivelCentavos: 5_280_000_00, situacao: "adimplente", registroRef: "Matrícula registrada, Sorriso/MT" },
+  { codigo: "CCB-RIO-02", serie: "Série A", dataEmissao: "2026-04-22", vencimento: "2028-04-22", devedorDescricao: "Armazém e beneficiamento de grãos, Rondonópolis/MT", garantiaTipo: "Alienação fiduciária de galpão logístico", valorCentavos: 2_000_000_00, valorResgateCentavos: resgateCcb(2_000_000_00, 24), garantiaValorCentavos: 4_480_000_00, valorElegivelCentavos: 3_584_000_00, situacao: "adimplente", registroRef: "Matrícula registrada, Rondonópolis/MT" },
+  { codigo: "CCB-RIO-03", serie: "Série B", dataEmissao: "2026-05-15", vencimento: "2027-05-15", devedorDescricao: "Transportadora de grãos, Rio Verde/GO", garantiaTipo: "Alienação fiduciária de imóvel urbano", valorCentavos: 1_200_000_00, valorResgateCentavos: resgateCcb(1_200_000_00, 12), garantiaValorCentavos: 2_640_000_00, valorElegivelCentavos: 2_112_000_00, situacao: "adimplente", registroRef: "Matrícula registrada, Rio Verde/GO" },
+  { codigo: "CCB-RIO-04", serie: "Única", dataEmissao: "2026-06-30", vencimento: "2029-06-30", devedorDescricao: "Incorporadora, Balneário Camboriú/SC", garantiaTipo: "Alienação fiduciária de salas comerciais", valorCentavos: 1_500_000_00, valorResgateCentavos: resgateCcb(1_500_000_00, 36), garantiaValorCentavos: 3_300_000_00, valorElegivelCentavos: 2_640_000_00, situacao: "adimplente", registroRef: "Matrícula registrada, Balneário Camboriú/SC" },
 ] as const;
 
 /** Mantido para compatibilidade com telas antigas do lastro. */

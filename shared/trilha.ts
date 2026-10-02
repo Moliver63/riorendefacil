@@ -66,7 +66,7 @@ export const TRILHA: Modulo[] = [
       "Não existe FGC aqui. O Fundo Garantidor de Créditos protege CDB e poupança até um limite, mas não cobre este investimento.",
       "Quem garante é a própria Rio, com contratos de CCB lastreados em imóveis. O dinheiro só circula pela conta vinculada da oferta, as cargas de grão têm seguro durante o transporte e, no vencimento, a Rio recompra os títulos do investidor.",
       "Garantia reduz o risco, não elimina. Se a Rio não conseguir honrar a recompra, os imóveis das CCBs são executados, e isso leva meses e pode não recuperar o valor inteiro. O seguro cobre a carga no transporte, não a queda de preço do grão nem o atraso de um comprador.",
-      "Os contratos têm prazo de 12, 24 ou 36 meses. O rendimento pode ser resgatado antes, com pagamento em até 7 dias. O principal fica até o vencimento. Não invista dinheiro de que você pode precisar de repente.",
+      "Os contratos têm prazo de 12, 24 ou 36 meses. Os juros são creditados por dia e podem ser resgatados a qualquer momento, com pagamento em até 7 dias. O principal fica até o vencimento. Se precisar sair antes, o resgate antecipado leva até 60 dias e tem penalidade: até 12 meses você recebe só o principal; entre 12 e 24 meses, o principal corrigido pelo CDI; entre 24 e 36 meses, metade da performance acumulada. Não invista dinheiro de que você pode precisar de repente.",
     ],
     perguntas: [
       {
@@ -96,7 +96,7 @@ export const TRILHA: Modulo[] = [
           "Prazo fixo de 3 meses, renovado automaticamente",
         ],
         correta: 1,
-        explicacao: "Antes do vencimento, só o rendimento pode ser resgatado, com pagamento em até 7 dias.",
+        explicacao: "Os juros podem ser resgatados a qualquer momento, em até 7 dias. Sair com o principal antes do prazo é possível em até 60 dias, com penalidade sobre a performance.",
       },
     ],
   },

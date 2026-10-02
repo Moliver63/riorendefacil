@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { AreaLogada, Vazio } from "@/components/layout/Layout";
 import { SeloEmissor } from "@/components/landing/SiteLayout";
@@ -6,6 +6,7 @@ import { trpc, type Saidas } from "@/lib/trpc";
 import { Seo } from "@/components/SEO";
 import { formatarBRL, formatarPct } from "~shared/finance";
 import { BarraAlocacao, type ChaveFatia } from "@/components/oferta/Ficha";
+import { EvolucaoPatrimonio } from "@/components/painel/EvolucaoPatrimonio";
 
 type ContratoPainel = Saidas["investidor"]["painel"]["contratos"][number];
 
@@ -47,59 +48,6 @@ function ProximoPasso({ temContrato }: { temContrato: boolean }) {
         ))}
       </ol>
     </section>
-  );
-}
-
-/** Largura real do contêiner, para o SVG desenhar em pixels (texto legível no celular e no desktop). */
-function useLargura<T extends HTMLElement>(inicial: number) {
-  const ref = useRef<T>(null);
-  const [largura, setLargura] = useState(inicial);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const ro = new ResizeObserver(([e]) => e && setLargura(Math.round(e.contentRect.width)));
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, []);
-  return [ref, largura] as const;
-}
-
-/** Curva do rendimento acumulado (SVG puro), com marcador de hoje. */
-function GraficoEvolucao({ c, hoje }: { c: ContratoPainel; hoje: string }) {
-  const [ref, L] = useLargura<HTMLElement>(640);
-  const pts = c.evolucao;
-  if (pts.length < 2) return null;
-  const A = L < 480 ? 200 : 240;
-  const m = { e: L < 480 ? 56 : 72, d: 12, t: 28, b: 28 };
-  const max = Math.max(...pts.map((p) => p.rendimentoCentavos), 1);
-  const t0 = new Date(pts[0]!.data).getTime(), t1 = new Date(pts.at(-1)!.data).getTime();
-  const x = (iso: string) => m.e + ((new Date(iso).getTime() - t0) / (t1 - t0)) * (L - m.e - m.d);
-  const y = (v: number) => m.t + (1 - v / max) * (A - m.t - m.b);
-  const linha = pts.map((p, i) => `${i ? "L" : "M"}${x(p.data).toFixed(1)},${y(p.rendimentoCentavos).toFixed(1)}`).join(" ");
-  const hojeX = Math.min(Math.max(x(hoje), m.e), L - m.d);
-  const hojeY = y(c.rendimentoBrutoCentavos);
-  const ancora = hojeX < m.e + 60 ? "start" : hojeX > L - 60 ? "end" : "middle";
-  const ticks = [0, 0.5, 1].map((f) => Math.round(max * f));
-  const curto = (v: number) => (v >= 10_000_00 ? `R$ ${(v / 100_000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} mil` : formatarBRL(v).replace(",00", ""));
-  return (
-    <figure className="grafico" ref={ref}>
-      <figcaption>Rendimento bruto acumulado até o vencimento ({formatarBRL(max)})</figcaption>
-      <svg width={L} height={A} viewBox={`0 0 ${L} ${A}`} role="img" aria-label={`Rendimento acumulado: ${formatarBRL(c.rendimentoBrutoCentavos)} até hoje, ${formatarBRL(max)} no vencimento`}>
-        {ticks.map((v) => (
-          <g key={v}>
-            <line x1={m.e} x2={L - m.d} y1={y(v)} y2={y(v)} className="grafico__grade" />
-            <text x={m.e - 8} y={y(v) + 4} textAnchor="end" className="grafico__eixo">{curto(v)}</text>
-          </g>
-        ))}
-        <path d={`${linha} L${x(pts.at(-1)!.data)},${y(0)} L${x(pts[0]!.data)},${y(0)} Z`} className="grafico__area" />
-        <path d={linha} className="grafico__linha" />
-        <line x1={hojeX} x2={hojeX} y1={m.t - 8} y2={A - m.b} className="grafico__hoje" />
-        <circle cx={hojeX} cy={hojeY} r={5} className="grafico__ponto" />
-        <text x={hojeX} y={m.t - 14} textAnchor={ancora} className="grafico__eixo grafico__eixo--hoje">hoje · {formatarBRL(c.rendimentoBrutoCentavos)}</text>
-        <text x={m.e} y={A - 8} className="grafico__eixo">{data(pts[0]!.data)}</text>
-        <text x={L - m.d} y={A - 8} textAnchor="end" className="grafico__eixo">{data(pts.at(-1)!.data)}</text>
-      </svg>
-    </figure>
   );
 }
 
@@ -197,7 +145,7 @@ function Extrato({ contratoId }: { contratoId: number }) {
 
 function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["investidor"]["painel"] }) {
   const utils = trpc.useUtils();
-  const [aba, setAba] = useState<"onde" | "evolucao" | "resgate" | "extrato">("onde");
+  const [aba, setAba] = useState<"onde" | "evolucao" | "resgate" | "extrato">("evolucao");
   return (
     <section className="bloco contrato">
       <div className="bloco__cab">
@@ -213,7 +161,7 @@ function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["inves
         <div className="kpi"><span>Saldo total</span><strong className="num">{formatarBRL(c.principalCentavos + c.disponivelCentavos)}</strong><small>Rendimento bruto acumulado {formatarBRL(c.rendimentoBrutoCentavos)} · já resgatado {formatarBRL(c.resgatadoCentavos)}</small></div>
       </div>
       <div className="abas" role="tablist">
-        {(["onde", "evolucao", "resgate", "extrato"] as const).map((a) => (
+        {(["evolucao", "onde", "resgate", "extrato"] as const).map((a) => (
           <button key={a} role="tab" aria-selected={aba === a} className={aba === a ? "on" : ""} onClick={() => setAba(a)}>
             {a === "onde" ? "Onde está seu dinheiro" : a === "evolucao" ? "Evolução" : a === "resgate" ? "Pedir resgate" : "Extrato"}
           </button>
@@ -228,7 +176,20 @@ function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["inves
           <Link href={`/ofertas/${c.ofertaId}`} className="btn btn--ghost btn--peq">Ver operações e garantias da oferta</Link>
         </>
       )}
-      {aba === "evolucao" && <GraficoEvolucao c={c} hoje={painel.hoje} />}
+      {aba === "evolucao" && (
+        <EvolucaoPatrimonio
+          principalCentavos={c.principalCentavos}
+          taxaMensal={c.taxaMensal}
+          taxaMensalEfetiva={c.taxaMensalEfetiva}
+          saldoCentavos={c.saldoCentavos}
+          jurosProximoMesCentavos={c.jurosProximoMesCentavos}
+          valorNoVencimentoCentavos={c.valorNoVencimentoCentavos}
+          prazoResgateDias={painel.prazoResgateDias}
+          vencimento={c.vencimento}
+          hoje={painel.hoje}
+          pontos={c.evolucao}
+        />
+      )}
       {aba === "resgate" && (
         <FormResgate c={c} habilitado={painel.resgateHabilitado} previsto={painel.pagamentoSePedirHoje}
           onFeito={() => { void utils.investidor.painel.invalidate(); void utils.investidor.extrato.invalidate(); void utils.investidor.resgates.invalidate(); }} />

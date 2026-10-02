@@ -208,7 +208,7 @@ test("vitrine usa lastro de exemplo sem oferta ativa e simulador responde", asyn
   const l = await caller(null).plataforma.lastro();
   assert.equal(l.exemplo, true);
   assert.ok(l.itens.length > 0);
-  const s = await caller(null).simulador.calcular({ aporteCentavos: 100_000_00, prazoMeses: 12 });
+  const s = await caller(null).simulador.calcular({ aporteCentavos: 1_000_000_00, prazoMeses: 12 });
   assert.equal(s.elegivel, true);
   if (s.elegivel) assert.equal(s.exemplo, true);
 });

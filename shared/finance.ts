@@ -4,10 +4,12 @@
  * Regras de cálculo (todas puras, sem I/O, testadas em finance.test.ts):
  * - Valores monetários trabalham em centavos (inteiros) na borda, e em número
  *   de ponto flutuante só dentro do cálculo; o arredondamento é sempre no final.
- * - Taxa mensal é convertida para taxa diária EQUIVALENTE composta:
- *   (1 + m)^(1/30) - 1, mês comercial de 30 dias. Isso evita o atalho
- *   "taxa mensal ÷ 30" capitalizada diariamente, que entrega mais do que a taxa
- *   mensal anunciada e infla a comparação com o mercado.
+ * - Modelo da tabela progressiva da Rio: a taxa mensal é NOMINAL. Os juros
+ *   são creditados por dia e capitalizados: taxa diária = m ÷ 30, com 360 dias
+ *   de capitalização a cada 365 corridos. Fator em d dias corridos:
+ *   (1 + m/30)^(360·d/365). Em 12 meses: (1 + m/30)^360.
+ *   Por isso a taxa efetiva fica um pouco acima da nominal (1,80% nominal
+ *   rende 1,816% ao mês efetivo); a interface mostra as duas.
  * - Rentabilidade é sempre exibida BRUTA e LÍQUIDA de IR (tabela regressiva).
  *   O padrão da interface é o líquido.
  */
@@ -36,17 +38,52 @@ export function mesesParaDiasCorridos(meses: number): number {
   return Math.round((meses * 365.25) / 12);
 }
 
-export function taxaDiariaEquivalente(taxaMensal: number): number {
+/** Dias de capitalização em um ano (12 meses de 30 dias). */
+export const DIAS_CAPITALIZACAO_ANO = 360;
+
+/** Fator de capitalização da tabela em `diasCorridos` dias corridos. */
+export function fatorRio(taxaMensal: number, diasCorridos: number): number {
   if (taxaMensal < 0) throw new Error("Taxa mensal não pode ser negativa");
-  return Math.pow(1 + taxaMensal, 1 / DIAS_MES_COMERCIAL) - 1;
+  return Math.pow(1 + taxaMensal / DIAS_MES_COMERCIAL, (DIAS_CAPITALIZACAO_ANO * diasCorridos) / 365);
+}
+
+/** Fator em meses cheios, exatamente como a tabela: (1 + m/30)^(30·meses). */
+export function fatorMeses(taxaMensal: number, meses: number): number {
+  return Math.pow(1 + taxaMensal / DIAS_MES_COMERCIAL, DIAS_MES_COMERCIAL * meses);
+}
+
+/** Taxa por dia corrido (o que é creditado no painel a cada dia). */
+export function taxaDiariaEquivalente(taxaMensal: number): number {
+  return fatorRio(taxaMensal, 1) - 1;
+}
+
+export function taxaMensalEfetiva(taxaMensal: number): number {
+  return fatorMeses(taxaMensal, 1) - 1;
 }
 
 export function taxaAnualEquivalente(taxaMensal: number): number {
-  return Math.pow(1 + taxaMensal, 12) - 1;
+  return fatorMeses(taxaMensal, 12) - 1;
 }
 
+/** Taxa mensal nominal que, no modelo da tabela, rende `taxaAnual` em 12 meses. */
 export function taxaMensalDeAnual(taxaAnual: number): number {
-  return Math.pow(1 + taxaAnual, 1 / 12) - 1;
+  return DIAS_MES_COMERCIAL * (Math.pow(1 + taxaAnual, 1 / DIAS_CAPITALIZACAO_ANO) - 1);
+}
+
+/** Juros de um mês de `dias` dias corridos sobre um saldo (a tabela usa janeiro, 31 dias). */
+export function jurosDoMes(saldoCentavos: number, taxaMensal: number, dias = 30): number {
+  return Math.round(saldoCentavos * (fatorRio(taxaMensal, dias) - 1));
+}
+
+/** Linha da tabela progressiva: juros do mês e valor acumulado no vencimento, sem resgates. */
+export function linhaTabelaProgressiva(aporteCentavos: number, prazoMeses: number, taxaMensal: number) {
+  return {
+    aporteCentavos,
+    prazoMeses,
+    taxaMensal,
+    jurosMesCentavos: jurosDoMes(aporteCentavos, taxaMensal, 31),
+    resgateVencimentoCentavos: Math.round(aporteCentavos * fatorMeses(taxaMensal, prazoMeses)),
+  };
 }
 
 /**
@@ -118,14 +155,12 @@ export function simular(
   }
 
   const taxaDiaria = taxaDiariaEquivalente(taxaMensal);
-  // Capitalização em mês comercial (30 dias); IR pela lei usa dias corridos.
-  const diasCapitalizacao = prazoMeses * DIAS_MES_COMERCIAL;
+  // Capitalização como na tabela: (1 + m/30)^(30 · meses); IR pela lei usa dias corridos.
   const diasCorridos = mesesParaDiasCorridos(prazoMeses);
 
   const evolucao: PontoEvolucao[] = [];
   for (let mes = 0; mes <= prazoMeses; mes++) {
-    const dias = mes * DIAS_MES_COMERCIAL;
-    const bruto = aporteCentavos * Math.pow(1 + taxaDiaria, dias);
+    const bruto = aporteCentavos * fatorMeses(taxaMensal, mes);
     const rend = bruto - aporteCentavos;
     const liquido = aporteCentavos + rend * (1 - aliquotaIR(Math.max(mesesParaDiasCorridos(mes), 1)));
     evolucao.push({
@@ -135,7 +170,7 @@ export function simular(
     });
   }
 
-  const saldoBruto = aporteCentavos * Math.pow(1 + taxaDiaria, diasCapitalizacao);
+  const saldoBruto = aporteCentavos * fatorMeses(taxaMensal, prazoMeses);
   const rendimentoBruto = saldoBruto - aporteCentavos;
   const aliquota = aliquotaIR(diasCorridos);
   const ir = rendimentoBruto * aliquota;
@@ -186,23 +221,44 @@ export function compararLiquido(
   });
 }
 
+export interface ResgateNoTempo {
+  /** dias corridos desde o início do contrato */
+  dia: number;
+  valorCentavos: number;
+}
+
 /**
- * Rendimento diário acumulado de uma posição, para o painel do investidor.
- * Considera resgates de rendimento já pagos.
+ * Rendimento acumulado de uma posição, para o painel do investidor.
+ * Juros diários compostos pela tabela; cada resgate de rendimento sai do saldo
+ * na data do pedido e deixa de render a partir dali.
+ * Aceita o total resgatado (número) quando as datas não importam.
  */
 export function rendimentoAcumulado(
   principalCentavos: number,
   taxaMensal: number,
   diasDecorridos: number,
-  resgatesPagosCentavos = 0,
-): { brutoCentavos: number; disponivelCentavos: number } {
-  // Modelo "rendimento sacável": os juros não capitalizam e o principal fica
-  // travado, então o rendimento é linear pro rata (30 dias = taxa mensal cheia).
-  // Usar a taxa diária composta aqui pagaria menos que a taxa contratada.
-  const bruto = (principalCentavos * taxaMensal * diasDecorridos) / DIAS_MES_COMERCIAL;
+  resgates: number | ResgateNoTempo[] = 0,
+): { brutoCentavos: number; disponivelCentavos: number; saldoCentavos: number } {
+  const lista =
+    typeof resgates === "number"
+      ? resgates > 0
+        ? [{ dia: diasDecorridos, valorCentavos: resgates }]
+        : []
+      : [...resgates].sort((a, b) => a.dia - b.dia);
+  let saldo = principalCentavos;
+  let ultimo = 0;
+  let resgatado = 0;
+  for (const r of lista) {
+    const dia = Math.min(Math.max(r.dia, ultimo), diasDecorridos);
+    saldo = saldo * fatorRio(taxaMensal, dia - ultimo) - r.valorCentavos;
+    ultimo = dia;
+    resgatado += r.valorCentavos;
+  }
+  saldo *= fatorRio(taxaMensal, diasDecorridos - ultimo);
   return {
-    brutoCentavos: Math.round(bruto),
-    disponivelCentavos: Math.max(0, Math.round(bruto - resgatesPagosCentavos)),
+    brutoCentavos: Math.round(saldo - principalCentavos + resgatado),
+    disponivelCentavos: Math.max(0, Math.round(saldo - principalCentavos)),
+    saldoCentavos: Math.round(Math.max(saldo, principalCentavos)),
   };
 }
 

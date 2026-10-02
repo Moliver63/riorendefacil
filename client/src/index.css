@@ -1614,3 +1614,59 @@ textarea { font: 400 15px/1.4 var(--sans); }
 .prazos button { min-height: 44px; border-radius: var(--r-sm); border: 1px solid rgb(233 240 236 / 0.25); background: transparent; color: var(--sobre-tinta); font: 600 15px var(--sans); cursor: pointer; }
 .prazos button:hover { border-color: var(--sobre-tinta); }
 .prazos button.on { background: var(--cobre); border-color: var(--cobre); color: #fff; }
+
+/* ───────── Evolução do patrimônio (painel) ───────── */
+.evo { display: grid; gap: 18px; }
+.evo__kpis { margin: 0; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--linha); border: 1px solid var(--linha); border-radius: var(--r-sm); overflow: hidden; }
+.evo__kpis > div { background: #fff; padding: 14px 16px; display: grid; gap: 2px; align-content: start; }
+.evo__kpis dt { font-size: 12px; color: var(--suave); text-transform: uppercase; letter-spacing: 0.04em; }
+.evo__kpis dd { margin: 0; font: 500 22px/1.2 var(--serif); color: var(--tinta); }
+.evo__kpis dd small { font: 400 13px var(--sans); color: var(--suave); }
+.evo__kpis > div > small { font-size: 12px; color: var(--suave); }
+@media (max-width: 860px) { .evo__kpis { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 480px) { .evo__kpis { grid-template-columns: 1fr; } .evo__kpis > div { padding: 12px 14px; } }
+.evo__fig { margin: 0; min-width: 0; }
+.evo__legenda { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--texto); margin-bottom: 10px; }
+.evo__legenda span { display: inline-flex; align-items: center; gap: 8px; }
+.evo__chave { display: inline-block; width: 18px; height: 0; border-top: 2.5px solid; flex: none; }
+.evo__chave--real { border-color: var(--verde); }
+.evo__chave--proj { border-color: var(--tinta-3); border-top-style: dashed; }
+.evo__chave--princ { border-color: var(--cobre); border-top-width: 1.5px; border-top-style: dotted; }
+.evo__plot { position: relative; }
+.evo__plot svg { display: block; max-width: 100%; overflow: visible; touch-action: pan-y; }
+.evo__grade { stroke: var(--areia-2); }
+.evo__eixo { font: 11px var(--sans); fill: var(--suave); font-variant-numeric: tabular-nums; }
+.evo__rot { font: 600 12px var(--sans); fill: var(--tinta); font-variant-numeric: tabular-nums; }
+.evo__principal { stroke: var(--cobre); stroke-width: 1.5; stroke-dasharray: 2 4; }
+.evo__area { fill: rgb(46 123 89 / 0.1); }
+.evo__proj { fill: none; stroke: var(--tinta-3); stroke-width: 2; stroke-dasharray: 6 5; stroke-linejoin: round; }
+.evo__real { fill: none; stroke: var(--verde); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+.evo__hoje { stroke: var(--verde); stroke-width: 1; stroke-dasharray: 2 3; opacity: 0.6; }
+.evo__mira { stroke: var(--suave); stroke-width: 1; }
+.evo__ponto { fill: var(--verde); stroke: #fff; stroke-width: 2; }
+.evo__ponto--proj { fill: var(--tinta-3); }
+.evo__dica { position: absolute; top: 0; transform: translateX(-50%); background: var(--tinta); color: var(--sobre-tinta); border-radius: var(--r-sm); padding: 10px 12px; font-size: 13px; display: grid; gap: 4px; pointer-events: none; box-shadow: var(--sombra); min-width: 180px; z-index: 2; }
+.evo__dica strong { font-size: 13px; }
+.evo__dica span { display: flex; align-items: center; gap: 8px; font-variant-numeric: tabular-nums; }
+.evo__dica .evo__chave--real { border-color: #6fcf9f; }
+.evo__dica .evo__chave--proj { border-color: var(--sobre-tinta-suave); }
+.evo__dica-sub { color: var(--sobre-tinta-suave); font-size: 12px; }
+.evo__tabela summary { cursor: pointer; font-weight: 600; font-size: 14px; color: var(--tinta-3); padding: 4px 0; }
+.evo__tabela .tabela-wrap { margin-top: 8px; max-height: 360px; overflow-y: auto; }
+
+/* ───────── Tabela progressiva e carteira de CCBs (ficha) ───────── */
+.tabela-prog th small { display: block; font-size: 10px; letter-spacing: 0.04em; color: var(--suave); text-transform: none; font-weight: 500; }
+.tabela-prog tbody + tbody { border-top: 2px solid var(--linha); }
+.tabela-prog tbody th { text-align: left; font: 600 14px var(--sans); color: var(--tinta); text-transform: none; letter-spacing: 0; vertical-align: top; padding-top: 14px; background: var(--areia); }
+.quadro-ccb { margin: 0 0 16px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--linha); border: 1px solid var(--linha); border-radius: var(--r-sm); overflow: hidden; }
+.quadro-ccb > div { background: #fff; padding: 12px 14px; }
+.quadro-ccb dt { font-size: 12px; color: var(--suave); text-transform: uppercase; letter-spacing: 0.04em; }
+.quadro-ccb dd { margin: 4px 0 0; font: 500 20px/1.2 var(--serif); color: var(--tinta); }
+.quadro-ccb dd small { display: block; font: 400 12px var(--sans); color: var(--suave); }
+@media (max-width: 640px) { .quadro-ccb { grid-template-columns: 1fr; } }
+.resgate-antecipado p { margin: 0 0 12px; }
+.resgate-antecipado ol { list-style: none; margin: 0 0 10px; padding: 0; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.resgate-antecipado li { display: grid; gap: 4px; padding: 12px 14px; background: #fff; border: 1px solid var(--linha); border-radius: var(--r-sm); font-size: 14px; }
+.resgate-antecipado li span { color: var(--suave); }
+@media (max-width: 760px) { .resgate-antecipado ol { grid-template-columns: 1fr; } }
+.tabela-prog td, .tabela-prog th { white-space: nowrap; }

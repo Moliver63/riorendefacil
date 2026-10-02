@@ -16,7 +16,7 @@ import { and, desc, eq, inArray, sum } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "./db";
 import { contratos, resgatesRendimento, type Contrato } from "./schema";
-import { aliquotaIR, rendimentoAcumulado } from "../shared/finance";
+import { aliquotaIR, fatorMeses, rendimentoAcumulado, type ResgateNoTempo } from "../shared/finance";
 
 export const STATUS_RESGATE_ATIVOS = ["solicitado", "aprovado", "pago"] as const;
 
@@ -54,10 +54,19 @@ export async function totalResgatado(contratoId: number): Promise<number> {
   return Number(r?.total ?? 0);
 }
 
-export function saldoDoContrato(c: Contrato, resgatado: number, hoje = new Date()) {
-  if (c.status !== "ativo") return { brutoCentavos: 0, disponivelCentavos: 0, dias: 0 };
+/** Resgates de rendimento no tempo (dia do pedido desde o início), para os juros compostos. */
+export async function resgatesDoContrato(c: Contrato): Promise<(ResgateNoTempo & { status: string })[]> {
+  const linhas = await db
+    .select({ valor: resgatesRendimento.valorCentavos, em: resgatesRendimento.solicitadoEm, status: resgatesRendimento.status })
+    .from(resgatesRendimento)
+    .where(and(eq(resgatesRendimento.contratoId, c.id), inArray(resgatesRendimento.status, [...STATUS_RESGATE_ATIVOS])));
+  return linhas.map((r) => ({ dia: diasDesde(c.inicio, r.em), valorCentavos: r.valor, status: r.status }));
+}
+
+export function saldoDoContrato(c: Contrato, resgates: number | ResgateNoTempo[], hoje = new Date()) {
+  if (c.status !== "ativo") return { brutoCentavos: 0, disponivelCentavos: 0, saldoCentavos: 0, dias: 0 };
   const dias = diasDesde(c.inicio, hoje);
-  return { ...rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), dias, resgatado), dias };
+  return { ...rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), dias, resgates), dias };
 }
 
 /** IR retido sobre o rendimento resgatado, pela tabela regressiva contando desde o início do contrato. */
@@ -67,14 +76,25 @@ export function irDoResgate(c: Contrato, valorCentavos: number, hoje = new Date(
   return { aliquota, irCentavos: ir, liquidoCentavos: valorCentavos - ir };
 }
 
-/** Curva do rendimento acumulado mês a mês, do início ao vencimento. */
-export function evolucaoDoContrato(c: Contrato) {
+/**
+ * Curva do saldo mês a mês, do início ao vencimento, como na tabela progressiva:
+ * `projetadoCentavos` sem resgates (o que acumula se nada for sacado) e
+ * `realizadoCentavos` com os resgates feitos até cada data (só até hoje).
+ */
+export function evolucaoDoContrato(c: Contrato, resgates: ResgateNoTempo[] = [], hoje = new Date()) {
   if (!c.inicio) return [];
-  const pontos: { data: string; rendimentoCentavos: number }[] = [];
+  const taxa = Number(c.taxaMensal);
+  const diasHoje = diasDesde(c.inicio, hoje);
+  const pontos: { data: string; mes: number; projetadoCentavos: number; rendimentoCentavos: number; realizadoCentavos: number | null }[] = [];
   for (let m = 0; m <= c.prazoMeses; m++) {
     const data = somarMeses(c.inicio, m);
     const dias = diasDesde(c.inicio, new Date(data + "T12:00:00Z"));
-    pontos.push({ data, rendimentoCentavos: rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), dias).brutoCentavos });
+    const projetado = Math.round(c.principalCentavos * fatorMeses(taxa, m));
+    const realizado =
+      dias <= diasHoje
+        ? rendimentoAcumulado(c.principalCentavos, taxa, dias, resgates.filter((r) => r.dia <= dias)).saldoCentavos
+        : null;
+    pontos.push({ data, mes: m, projetadoCentavos: projetado, rendimentoCentavos: projetado - c.principalCentavos, realizadoCentavos: realizado });
   }
   return pontos;
 }

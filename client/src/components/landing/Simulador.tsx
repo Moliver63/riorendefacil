@@ -3,13 +3,13 @@ import { useMemo, useState } from "react";
 import { trpc } from "@/lib/trpc";
 import { formatarBRL, formatarPct } from "~shared/finance";
 
-const APORTES = [5_000, 10_000, 30_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
+const APORTES = [1_000_000, 1_500_000, 2_000_000, 2_500_000, 3_000_000, 3_500_000, 5_000_000];
 
 export function Simulador({ onSimular }: { onSimular?: (s: { aporte: number; prazo: number; saldoLiquido: number }) => void }) {
-  const [idxAporte, setIdxAporte] = useState(4);
+  const [idxAporte, setIdxAporte] = useState(0);
   const [prazo, setPrazo] = useState(12);
   const [liquido, setLiquido] = useState(true);
-  const aporte = APORTES[idxAporte] ?? 100_000;
+  const aporte = APORTES[idxAporte] ?? 1_000_000;
 
   const status = trpc.plataforma.status.useQuery();
   const q = trpc.simulador.calcular.useQuery(
@@ -49,8 +49,8 @@ export function Simulador({ onSimular }: { onSimular?: (s: { aporte: number; pra
             onChange={(e) => setIdxAporte(Number(e.target.value))}
           />
           <div className="campo__escala">
-            <span>R$ 5 mil</span>
             <span>R$ 1 mi</span>
+            <span>R$ 5 mi</span>
           </div>
         </div>
 

@@ -73,6 +73,14 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - Telas: prateleira `/ofertas`, ficha `/ofertas/:id` com reserva, aba "Onde está seu dinheiro" no painel, admin de operações e conta vinculada, editor da ficha e garantias. Landing, trilha e termo de adesão reescritos para grãos.
 - 54 testes. Fluxo completo conferido no navegador.
 
+## Sessão 07 · 02/10/2026 · tabela progressiva e evolução do patrimônio
+
+- Cálculo alinhado à tabela progressiva enviada por Michel: taxa mensal nominal, juros creditados por dia e capitalizados, fator (1 + m/30)^(360·d/365). 12 meses = (1 + m/30)^360. Bate com a tabela em centavos (diferença de arredondamento da origem até 0,002%).
+- Faixas de exemplo = tabela (R$ 1 / 2 / 3 / 3,5 mi × 12 / 24 / 36 meses, 1,80% a 2,40% a.m.). Na linha de R$ 2 mi em 12 meses a tabela de origem diz 1,80%, mas o valor de resgate só fecha com 1,90%; usamos 1,90%.
+- Rendimento do contrato com juros compostos e resgates no tempo (valor sacado deixa de render a partir do pedido). Obrigações da conta vinculada = saldo do investidor + resgates pedidos e não pagos.
+- CCB ganhou série, data de emissão e valor de resgate no vencimento (migração 0003). Ficha mostra a carteira de CCBs no formato de quadro resumo, a tabela progressiva e as regras de resgate antecipado (D+60; até 12 meses só principal; 12 a 24 meses principal + CDI; 24 a 36 meses 50% da performance).
+- Painel: aba Evolução com saldo realizado, projeção sem saques até o vencimento, linha do principal, detalhe ao passar o mouse e tabela mês a mês.
+
 ## Pendências
 
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.
@@ -82,6 +90,8 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - `DADOS_SECRET` no Render antes de cadastros reais.
 - Minuta oficial do emissor para substituir o termo de adesão resumido.
 - Enquadramento CVM do modelo de grãos (contrato de investimento coletivo; caminhos possíveis: CRA por securitizadora com distribuidor, ou crowdfunding pela Resolução 88).
+- Taxas para aportes abaixo de R$ 1 milhão (a tabela de referência começa em R$ 1 mi).
+- Fluxo de resgate antecipado do principal no sistema (hoje só as regras aparecem na ficha, no termo e na trilha).
 - Integração com o motor de viabilidade do LogPro para avaliar cada operação antes da compra.
 - Imagem `client/public/og.png` para compartilhamento.
 - Atualizar `shared/mercado.ts` com fonte oficial antes de publicar.

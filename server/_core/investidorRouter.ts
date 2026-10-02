@@ -8,7 +8,7 @@ import { contratos, documentos, investidores, ofertas, reservas, resgatesRendime
 import { QUESTOES_SUITABILITY, calcularPerfil } from "../../shared/suitability";
 import { esquemaCadastro, mascararCpf } from "../../shared/cadastro";
 import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
-import { dataPagamentoResgate, formatarBRL, formatarPct, tetoDaFaixa, type Faixa } from "../../shared/finance";
+import { dataPagamentoResgate, fatorMeses, formatarBRL, formatarPct, jurosDoMes, taxaMensalEfetiva, tetoDaFaixa, type Faixa } from "../../shared/finance";
 import { alocacao } from "../lastroService";
 import { ficha } from "../fichaOferta";
 import { prazoValido } from "../../shared/lastroGraos";
@@ -22,6 +22,7 @@ import {
   extratoDoContrato,
   getContrato,
   irDoResgate,
+  resgatesDoContrato,
   saldoDoContrato,
   totalResgatado,
 } from "../contratoService";
@@ -135,7 +136,8 @@ export const investidorRouter = router({
     const itens = await Promise.all(
       lista.map(async ({ c, oferta, ofertaCodigo }) => {
         const resgatado = await totalResgatado(c.id);
-        const s = saldoDoContrato(c, resgatado, hoje);
+        const noTempo = c.status === "ativo" ? await resgatesDoContrato(c) : [];
+        const s = saldoDoContrato(c, noTempo, hoje);
         return {
           id: c.id,
           oferta,
@@ -152,13 +154,19 @@ export const investidorRouter = router({
           resgatadoCentavos: resgatado,
           disponivelCentavos: s.disponivelCentavos,
           irSeResgatarTudo: c.status === "ativo" ? irDoResgate(c, s.disponivelCentavos, hoje) : null,
-          evolucao: c.status === "ativo" ? evolucaoDoContrato(c) : [],
+          saldoCentavos: s.saldoCentavos,
+          jurosProximoMesCentavos: c.status === "ativo" ? jurosDoMes(s.saldoCentavos, Number(c.taxaMensal), 30) : 0,
+          valorNoVencimentoCentavos: c.status === "ativo" ? Math.round(c.principalCentavos * fatorMeses(Number(c.taxaMensal), c.prazoMeses)) : 0,
+          taxaMensalEfetiva: taxaMensalEfetiva(Number(c.taxaMensal)),
+          resgatesNoTempo: noTempo.map((r) => ({ dia: r.dia, valorCentavos: r.valorCentavos })),
+          evolucao: c.status === "ativo" ? evolucaoDoContrato(c, noTempo, hoje) : [],
           alocacao: c.status === "ativo" ? await alocacao(c.id) : [],
         };
       }),
     );
     return {
       resgateHabilitado: pendenciasParaCaptar(e).length === 0,
+      prazoResgateDias: e.prazoResgateDias,
       pagamentoSePedirHoje: dataPagamentoResgate(hoje, e.prazoResgateDias).toISOString().slice(0, 10),
       hoje: hoje.toISOString().slice(0, 10),
       contratos: itens,
@@ -220,7 +228,7 @@ export const investidorRouter = router({
         return { ok: true as const, id: ja.id, previstoPara: ja.previstoPara, repetido: true, ...irJa, irCentavos: Number(ja.irRetidoCentavos), liquidoCentavos: ja.valorCentavos - Number(ja.irRetidoCentavos) };
       }
 
-      const s = saldoDoContrato(c, await totalResgatado(c.id));
+      const s = saldoDoContrato(c, await resgatesDoContrato(c));
       if (input.valorCentavos > s.disponivelCentavos) {
         throw new TRPCError({ code: "BAD_REQUEST", message: `Valor acima do rendimento disponível (${formatarBRL(s.disponivelCentavos)}).` });
       }

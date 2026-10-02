@@ -5,8 +5,8 @@
 import { and, asc, desc, eq, inArray, sum } from "drizzle-orm";
 import { TRPCError } from "@trpc/server";
 import { db } from "./db";
-import { ccbs, contratos, lancamentosConta, ofertas, operacoesGraos, resgatesRendimento, type Oferta } from "./schema";
-import { diasDesde } from "./contratoService";
+import { ccbs, contratos, lancamentosConta, ofertas, operacoesGraos, type Oferta } from "./schema";
+import { diasDesde, resgatesDoContrato } from "./contratoService";
 import { rendimentoAcumulado } from "../shared/finance";
 import { alocacaoDoContrato, coberturaProjetada, posicaoDaOferta, valorComSinal, valorElegivel, type TipoLancamento } from "../shared/lastroGraos";
 
@@ -61,16 +61,6 @@ async function contratosDaOferta(ofertaId: number) {
     .where(and(eq(contratos.ofertaId, ofertaId), inArray(contratos.status, [...STATUS_COMPROMETIDO])));
 }
 
-async function pagoPorContrato(ids: number[]) {
-  if (!ids.length) return new Map<number, number>();
-  const linhas = await db
-    .select({ contratoId: resgatesRendimento.contratoId, total: sum(resgatesRendimento.valorCentavos) })
-    .from(resgatesRendimento)
-    .where(and(inArray(resgatesRendimento.contratoId, ids), eq(resgatesRendimento.status, "pago")))
-    .groupBy(resgatesRendimento.contratoId);
-  return new Map(linhas.map((l) => [l.contratoId, Number(l.total ?? 0)]));
-}
-
 /** Tudo o que a oferta tem e deve, num retrato só. */
 export async function posicao(ofertaId: number, hoje = new Date()) {
   const oferta = await getOferta(ofertaId);
@@ -80,14 +70,16 @@ export async function posicao(ofertaId: number, hoje = new Date()) {
     db.select().from(ccbs).where(eq(ccbs.ofertaId, ofertaId)).orderBy(asc(ccbs.codigo)),
     contratosDaOferta(ofertaId),
   ]);
-  const pagos = await pagoPorContrato(cs.map((c) => c.id));
   let obrigacoes = 0;
   let principalAtivo = 0;
   for (const c of cs) {
     if (c.status !== "ativo") continue;
     principalAtivo += c.principalCentavos;
-    const bruto = rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), diasDesde(c.inicio, hoje)).brutoCentavos;
-    obrigacoes += c.principalCentavos + bruto - (pagos.get(c.id) ?? 0);
+    // saldo do investidor hoje (juros compostos, resgates fora) + resgates pedidos e ainda não pagos
+    const rs = await resgatesDoContrato(c);
+    const saldo = rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), diasDesde(c.inicio, hoje), rs).saldoCentavos;
+    const pendentes = rs.filter((r) => r.status !== "pago").reduce((t, r) => t + r.valorCentavos, 0);
+    obrigacoes += saldo + pendentes;
   }
   const principalComprometido = cs.reduce((s, c) => s + c.principalCentavos, 0);
   const pos = posicaoDaOferta({
@@ -140,5 +132,9 @@ export function garantiasPublicas(gs: Awaited<ReturnType<typeof posicao>>["garan
     ltv: g.garantiaValorCentavos ? g.valorCentavos / g.garantiaValorCentavos : null,
     situacao: g.situacao,
     registro: g.registroRef,
+    serie: g.serie,
+    emissao: g.dataEmissao,
+    vencimento: g.vencimento,
+    valorResgateCentavos: g.valorResgateCentavos,
   }));
 }

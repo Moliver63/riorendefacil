@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import type { Saidas } from "@/lib/trpc";
-import { formatarBRL, formatarPct } from "~shared/finance";
-import { WATERFALL, formatarCobertura } from "~shared/lastroGraos";
+import { formatarBRL, formatarPct, linhaTabelaProgressiva, tetoDaFaixa, type Faixa } from "~shared/finance";
+import { PRAZOS_CONTRATO, RESGATE_ANTECIPADO, WATERFALL, formatarCobertura } from "~shared/lastroGraos";
 
 export type Ficha = Saidas["plataforma"]["oferta"];
 type Operacao = Ficha["operacoes"][number];
@@ -138,25 +138,86 @@ export function TabelaOperacoes({ operacoes }: { operacoes: Operacao[] }) {
   );
 }
 
+/** Carteira de CCBs que garante a oferta, no formato de quadro resumo com valor de resgate no vencimento. */
 export function TabelaGarantias({ garantias }: { garantias: Ficha["garantias"] }) {
-  if (!garantias.length) return <p className="bloco__nota">Nenhuma garantia registrada.</p>;
+  if (!garantias.length) return <p className="bloco__nota">Nenhuma CCB registrada.</p>;
+  const custo = garantias.reduce((t, g) => t + g.valorCcbCentavos, 0);
+  const resgate = garantias.reduce((t, g) => t + (g.valorResgateCentavos ?? 0), 0);
+  const avaliacao = garantias.reduce((t, g) => t + (g.avaliacaoCentavos ?? 0), 0);
+  return (
+    <>
+      <dl className="quadro-ccb">
+        <div><dt>Valor atual da carteira</dt><dd className="num">{formatarBRL(custo)}</dd></div>
+        <div><dt>Valor de resgate no vencimento</dt><dd className="num">{resgate ? formatarBRL(resgate) : "–"}</dd></div>
+        <div><dt>Imóveis em garantia</dt><dd className="num">{formatarBRL(avaliacao)}<small>{custo ? ` · ${formatarPct(avaliacao / custo, 0)} da carteira` : ""}</small></dd></div>
+      </dl>
+      <div className="tabela-wrap">
+        <table className="tabela tabela--ops">
+          <thead><tr><th>Ativo</th><th>Emissão e vencimento</th><th className="dir">Custo de aquisição</th><th className="dir">Resgate</th><th>Garantia colateral</th><th className="dir">LTV</th><th>Situação</th></tr></thead>
+          <tbody>
+            {garantias.map((g) => (
+              <tr key={g.codigo}>
+                <td><strong className="mono">{g.codigo}</strong><span className="sub">{g.serie ?? "Série única"}</span></td>
+                <td>{dataBR(g.emissao)}<span className="sub">vence {dataBR(g.vencimento)}</span></td>
+                <td className="dir num">{formatarBRL(g.valorCcbCentavos)}</td>
+                <td className="dir num">{g.valorResgateCentavos ? formatarBRL(g.valorResgateCentavos) : "–"}</td>
+                <td>{g.tipo}<span className="sub">{g.descricao}{g.avaliacaoCentavos ? ` · avaliação ${formatarBRL(g.avaliacaoCentavos)}` : ""}</span></td>
+                <td className="dir num">{g.ltv !== null ? formatarPct(g.ltv, 0) : "–"}</td>
+                <td><span className={`status ${g.situacao === "adimplente" ? "status--adimplente" : "status--atraso"}`}>{g.situacao === "adimplente" ? "Em dia" : g.situacao}</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  );
+}
+
+/** Tabela progressiva: para cada faixa de aporte e prazo, juros do mês e valor acumulado no vencimento. */
+export function TabelaProgressiva({ faixas, prazoResgateDias }: { faixas: Faixa[]; prazoResgateDias: number }) {
+  const minimos = [...new Set(faixas.map((f) => f.minimoCentavos))].sort((a, b) => a - b);
+  const grupos = minimos
+    .map((m) => ({
+      minimo: m,
+      linhas: PRAZOS_CONTRATO.map((p) => {
+        const taxa = tetoDaFaixa(faixas, m, p);
+        return taxa === null ? null : linhaTabelaProgressiva(m, p, taxa);
+      }).filter((l): l is NonNullable<typeof l> => l !== null),
+    }))
+    .filter((g) => g.linhas.length);
   return (
     <div className="tabela-wrap">
-      <table className="tabela">
-        <thead><tr><th>CCB</th><th>Garantia</th><th className="dir">Avaliação</th><th className="dir">Elegível</th><th className="dir">LTV</th><th>Situação</th></tr></thead>
-        <tbody>
-          {garantias.map((g) => (
-            <tr key={g.codigo}>
-              <td className="mono">{g.codigo}</td>
-              <td>{g.descricao}<span className="sub">{g.tipo}{g.registro ? ` · ${g.registro}` : ""}</span></td>
-              <td className="dir num">{g.avaliacaoCentavos ? formatarBRL(g.avaliacaoCentavos) : "–"}</td>
-              <td className="dir num"><strong>{formatarBRL(g.elegivelCentavos)}</strong></td>
-              <td className="dir num">{g.ltv !== null ? formatarPct(g.ltv, 0) : "–"}</td>
-              <td><span className={`status ${g.situacao === "adimplente" ? "status--adimplente" : "status--atraso"}`}>{g.situacao === "adimplente" ? "Em dia" : g.situacao}</span></td>
-            </tr>
-          ))}
-        </tbody>
+      <table className="tabela tabela-prog">
+        <thead>
+          <tr><th>Aporte</th><th>Prazo</th><th className="dir">Taxa mensal nominal</th><th className="dir">Juros no mês<small>31 dias</small></th><th>Liquidez dos juros</th><th className="dir">Acumulado no vencimento</th></tr>
+        </thead>
+        {grupos.map((g) => (
+          <tbody key={g.minimo}>
+            {g.linhas.map((l, i) => (
+              <tr key={l.prazoMeses}>
+                {i === 0 && <th scope="rowgroup" rowSpan={g.linhas.length} className="num">{formatarBRL(g.minimo)}</th>}
+                <td className="num">{l.prazoMeses} meses</td>
+                <td className="dir num">{formatarPct(l.taxaMensal, 2)}</td>
+                <td className="dir num">{formatarBRL(l.jurosMesCentavos)}</td>
+                <td>D+{prazoResgateDias}</td>
+                <td className="dir num"><strong>{formatarBRL(l.resgateVencimentoCentavos)}</strong></td>
+              </tr>
+            ))}
+          </tbody>
+        ))}
       </table>
+    </div>
+  );
+}
+
+export function RegrasResgateAntecipado() {
+  return (
+    <div className="resgate-antecipado">
+      <p>Saque do principal antes do prazo contratado: liquidado em D+{RESGATE_ANTECIPADO.liquidacaoDias} a partir do pedido, com a penalidade descontada da performance.</p>
+      <ol>
+        {RESGATE_ANTECIPADO.regras.map((r) => <li key={r.faixa}><strong>{r.faixa}</strong><span>{r.regra}</span></li>)}
+      </ol>
+      <p className="bloco__nota">{RESGATE_ANTECIPADO.nota}</p>
     </div>
   );
 }
@@ -202,5 +263,5 @@ export const RISCOS_GRAOS = [
   { t: "Sem FGC", d: "Este investimento não tem cobertura do Fundo Garantidor de Créditos. A proteção vem da garantia da própria Rio, das CCBs lastreadas em imóveis, da conta vinculada e do seguro das cargas." },
   { t: "Risco da Rio", d: "A garantia e a recompra dos títulos dependem da capacidade de pagamento da Rio. Se ela falhar, as garantias em imóveis são executadas, o que leva tempo e pode não recuperar tudo." },
   { t: "Preço e comprador", d: "O preço do grão pode cair entre a compra e a venda, e um comprador pode atrasar. A carga tem seguro no transporte, mas oscilação de preço e atraso não são cobertos pelo seguro." },
-  { t: "Liquidez do principal", d: "O principal fica até o vencimento, em 12, 24 ou 36 meses, quando a Rio recompra os títulos. Antes disso, só o rendimento pode ser resgatado." },
+  { t: "Liquidez do principal", d: "O principal fica até o vencimento, em 12, 24 ou 36 meses, quando a Rio recompra os títulos. Sair antes é possível em D+60, com penalidade sobre o rendimento." },
 ];

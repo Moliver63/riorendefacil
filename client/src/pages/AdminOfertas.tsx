@@ -28,7 +28,7 @@ function NovaOferta() {
 
 function FormCCB({ ofertaId }: { ofertaId: number }) {
   const utils = trpc.useUtils();
-  const vazio = { codigo: "", setor: "imobiliario", devedor: "", valor: "", garantia: "", valorGarantia: "", elegivel: "", registro: "", vencimento: "", situacao: "adimplente", dias: "0" };
+  const vazio = { codigo: "", setor: "imobiliario", devedor: "", valor: "", garantia: "", valorGarantia: "", elegivel: "", registro: "", serie: "", emissao: "", resgate: "", vencimento: "", situacao: "adimplente", dias: "0" };
   const [f, setF] = useState(vazio);
   const set = (k: keyof typeof vazio) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => setF((s) => ({ ...s, [k]: e.target.value }));
   const salvar = trpc.admin.ccbs.salvar.useMutation({ onSuccess: () => { setF(vazio); void utils.admin.ccbs.listar.invalidate({ ofertaId }); } });
@@ -51,6 +51,9 @@ function FormCCB({ ofertaId }: { ofertaId: number }) {
           diasAtraso: Number(f.dias) || 0,
           valorElegivelCentavos: f.elegivel ? reais(f.elegivel) : null,
           registroRef: f.registro || undefined,
+          serie: f.serie || null,
+          dataEmissao: f.emissao || null,
+          valorResgateCentavos: f.resgate ? reais(f.resgate) : null,
         });
       }}
     >
@@ -62,6 +65,9 @@ function FormCCB({ ofertaId }: { ofertaId: number }) {
       <input placeholder="Avaliação do imóvel (R$)" value={f.valorGarantia} onChange={set("valorGarantia")} inputMode="decimal" />
       <input placeholder="Valor elegível (R$, após desconto)" value={f.elegivel} onChange={set("elegivel")} inputMode="decimal" />
       <input placeholder="Registro (matrícula, cartório)" value={f.registro} onChange={set("registro")} />
+      <input placeholder="Série (ex.: Série A)" value={f.serie} onChange={set("serie")} />
+      <input type="date" value={f.emissao} onChange={set("emissao")} aria-label="Data de emissão" title="Data de emissão" />
+      <input placeholder="Valor de resgate no vencimento (R$)" value={f.resgate} onChange={set("resgate")} inputMode="decimal" />
       <input type="date" value={f.vencimento} onChange={set("vencimento")} required aria-label="Vencimento" />
       <select value={f.situacao} onChange={set("situacao")}>{SITUACOES_CCB.map((s) => <option key={s}>{s}</option>)}</select>
       <input placeholder="Dias de atraso" value={f.dias} onChange={set("dias")} inputMode="numeric" />
@@ -79,14 +85,15 @@ function Lastro({ ofertaId }: { ofertaId: number }) {
       {data?.length ? (
         <div className="tabela-wrap">
           <table className="tabela">
-            <thead><tr><th>CCB</th><th>Imóvel</th><th>Garantia</th><th className="dir">Valor CCB</th><th className="dir">Elegível</th><th className="dir">LTV</th><th>Vencimento</th><th>Situação</th></tr></thead>
+            <thead><tr><th>CCB</th><th>Imóvel</th><th>Garantia</th><th className="dir">Custo</th><th className="dir">Resgate</th><th className="dir">Elegível</th><th className="dir">LTV</th><th>Vencimento</th><th>Situação</th></tr></thead>
             <tbody>
               {data.map((c) => (
                 <tr key={c.id}>
-                  <td className="mono">{c.codigo}</td>
+                  <td><span className="mono">{c.codigo}</span>{c.serie && <span className="sub">{c.serie}</span>}</td>
                   <td><span className={`ponto ponto--${c.setor}`} /> {c.devedorDescricao}</td>
                   <td>{c.garantiaTipo}</td>
                   <td className="dir num">{formatarBRL(c.valorCentavos)}</td>
+                  <td className="dir num">{c.valorResgateCentavos ? formatarBRL(c.valorResgateCentavos) : "–"}</td>
                   <td className="dir num">{formatarBRL(c.valorElegivelCentavos ?? c.garantiaValorCentavos ?? 0)}</td>
                   <td className="dir num">{c.garantiaValorCentavos ? formatarPct(c.valorCentavos / c.garantiaValorCentavos, 0) : "–"}</td>
                   <td>{new Date(c.vencimento + "T12:00:00").toLocaleDateString("pt-BR")}</td>

@@ -18,6 +18,7 @@ import {
   exigirStatus,
   extratoDoContrato,
   getContrato,
+  resgatesDoContrato,
   saldoDoContrato,
   somarMeses,
   totalResgatado,
@@ -103,7 +104,7 @@ export const investimentosRoutes = {
         contratos: await Promise.all(
           lista.map(async (c) => {
             const resgatado = await totalResgatado(c.id);
-            const s = saldoDoContrato(c, resgatado);
+            const s = saldoDoContrato(c, c.status === "ativo" ? await resgatesDoContrato(c) : []);
             return {
               ...c,
               taxaMensal: Number(c.taxaMensal),

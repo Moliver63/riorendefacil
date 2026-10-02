@@ -238,6 +238,10 @@ export const ccbs = pgTable(
     registroRef: varchar("registro_ref", { length: 255 }),
     /** Valor da garantia que conta para a cobertura (avaliação com desconto). Sem valor, usa a avaliação cheia. */
     valorElegivelCentavos: bigint("valor_elegivel_centavos", { mode: "number" }),
+    /** Formato da carteira de CCBs: série, emissão e valor de resgate no vencimento (bullet). */
+    serie: varchar("serie", { length: 32 }),
+    dataEmissao: date("data_emissao"),
+    valorResgateCentavos: bigint("valor_resgate_centavos", { mode: "number" }),
     atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ codigoIdx: uniqueIndex("ccbs_codigo_idx").on(t.ofertaId, t.codigo) }),

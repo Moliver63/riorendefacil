@@ -11,6 +11,20 @@
 export const PRAZOS_CONTRATO = [12, 24, 36] as const;
 export const prazoValido = (meses: number) => (PRAZOS_CONTRATO as readonly number[]).includes(meses);
 
+/**
+ * Resgate antecipado do principal (antes do prazo contratado): liquidado em
+ * D+60 a partir do pedido, com penalidade descontada da performance.
+ */
+export const RESGATE_ANTECIPADO = {
+  liquidacaoDias: 60,
+  regras: [
+    { faixa: "Até 12 meses de permanência", regra: "Devolução integral do principal, sem juros." },
+    { faixa: "Entre 12 e 24 meses", regra: "Principal remunerado apenas pelo CDI do período." },
+    { faixa: "Entre 24 e 36 meses", regra: "Pagamento de 50% da performance acumulada até a data do pedido." },
+  ],
+  nota: "Juros já resgatados durante o contrato são descontados do valor devido.",
+} as const;
+
 export const GRAOS = ["soja", "milho", "sorgo"] as const;
 export type Grao = (typeof GRAOS)[number];
 export const GRAO_ROTULO: Record<Grao, string> = { soja: "Soja", milho: "Milho", sorgo: "Sorgo" };

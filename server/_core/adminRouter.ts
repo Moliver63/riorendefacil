@@ -129,6 +129,9 @@ export const adminRouter = router({
           diasAtraso: z.number().int().min(0).max(3650),
           registroRef: z.string().max(255).optional(),
           valorElegivelCentavos: z.number().int().positive().nullable().optional(),
+          serie: z.string().trim().max(32).nullable().optional(),
+          dataEmissao: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
+          valorResgateCentavos: z.number().int().positive().nullable().optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {

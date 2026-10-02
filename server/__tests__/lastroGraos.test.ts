@@ -185,19 +185,20 @@ test("lastro em grãos: cobertura, conta vinculada e ordem de pagamentos", async
 
   painel = await ca.admin.operacoes.painel({ ofertaId: oferta.id });
   assert.equal(painel.posicao.saldoContaCentavos, 1_090_000_00);
-  // obrigação = 1 mi + 30 dias a 1,2% (12 mil) => folga de 78 mil
-  assert.equal(painel.posicao.obrigacoesCentavos, 1_012_000_00);
-  assert.equal(painel.posicao.margemLiberavelCentavos, 78_000_00);
+  // obrigação = 1 mi + 30 dias a 1,2% a.m. nominal com juros diários compostos (11.903,54)
+  assert.equal(painel.posicao.obrigacoesCentavos, 1_011_903_54);
+  const liberavel = painel.posicao.margemLiberavelCentavos;
+  assert.equal(liberavel, 1_090_000_00 - 1_011_903_54);
 
   // a margem da Rio não passa na frente do investidor
   await assert.rejects(
     ca.admin.conta.lancar({ ofertaId: oferta.id, tipo: "margem_rio", valorCentavos: 100_000_00, descricao: "Margem", data: hoje }),
-    /margem liberável hoje é R\$\s?78\.000,00/,
+    /margem liberável hoje é R\$\s?78\.096,46/,
   );
-  await ca.admin.conta.lancar({ ofertaId: oferta.id, tipo: "margem_rio", valorCentavos: 78_000_00, descricao: "Margem OP-T1", data: hoje });
+  await ca.admin.conta.lancar({ ofertaId: oferta.id, tipo: "margem_rio", valorCentavos: liberavel, descricao: "Margem OP-T1", data: hoje });
 
   // resgate pago sai da conta vinculada
-  const pedido = await ci.investidor.solicitarResgate({ contratoId: contrato.id, valorCentavos: 12_000_00, idempotencyKey: "6f1c9a52-2b8e-4f7d-9a51-3c2d1e0f4b77" });
+  const pedido = await ci.investidor.solicitarResgate({ contratoId: contrato.id, valorCentavos: 11_903_54, idempotencyKey: "6f1c9a52-2b8e-4f7d-9a51-3c2d1e0f4b77" });
   await ca.admin.resgates.aprovar({ id: pedido.id! });
   await ca.admin.resgates.marcarPago({ id: pedido.id! });
   const extrato = await db.select().from(lancamentosConta).where(eq(lancamentosConta.ofertaId, oferta.id));

@@ -3,6 +3,7 @@ import { Marca } from "@/components/landing/SiteLayout";
 import { Seo } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
 import { formatarBRL, formatarPct, taxaAnualEquivalente } from "~shared/finance";
+import { RESGATE_ANTECIPADO } from "~shared/lastroGraos";
 import { AVISO_RISCO } from "~shared/complianceGuard";
 
 type Qualificacao = {
@@ -95,9 +96,10 @@ export default function ContratoDocumento({ id }: { id: number }) {
             <tbody>
               <tr><th>Oferta</th><td>{c.oferta}</td></tr>
               <tr><th>Valor aportado</th><td className="num">{formatarBRL(c.principalCentavos)}</td></tr>
-              <tr><th>Remuneração</th><td className="num">{formatarPct(c.taxaMensal)} ao mês ({formatarPct(taxaAnualEquivalente(c.taxaMensal))} ao ano equivalente), rendimento pro rata dia sobre o valor aportado</td></tr>
+              <tr><th>Remuneração</th><td className="num">{formatarPct(c.taxaMensal)} ao mês nominal, juros creditados por dia e capitalizados ({formatarPct(taxaAnualEquivalente(c.taxaMensal))} ao ano efetivo)</td></tr>
               <tr><th>Prazo</th><td>{c.prazoMeses} meses{c.inicio ? `, de ${data(c.inicio)} a ${data(c.vencimento)}` : ", contados da confirmação do aporte"}</td></tr>
               <tr><th>Principal</th><td>devolvido no vencimento, com a recompra dos títulos pela Rio</td></tr>
+              <tr><th>Resgate antecipado do principal</th><td>liquidado em D+{RESGATE_ANTECIPADO.liquidacaoDias} do pedido, com penalidade sobre a performance: {RESGATE_ANTECIPADO.regras.map((r) => `${r.faixa.toLowerCase()}, ${r.regra.charAt(0).toLowerCase()}${r.regra.slice(1, -1)}`).join("; ")}. {RESGATE_ANTECIPADO.nota}</td></tr>
               <tr><th>Resgate do rendimento</th><td>a pedido do investidor, pago em até {c.prazoResgateDias} dias corridos, limitado ao rendimento disponível</td></tr>
               <tr><th>Conta para pagamentos</th><td>{q?.contaResgate ?? "a informar"}</td></tr>
               <tr><th>Tributação</th><td>IR retido na fonte sobre o rendimento, pela tabela regressiva (22,5% a 15% conforme o prazo)</td></tr>

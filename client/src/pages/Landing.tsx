@@ -27,7 +27,8 @@ const FAQ = [
   { p: "O RioRendeFácil é um banco?", r: "Não. Somos a tecnologia: ofertas, cadastro, painel e documentos. A Rio faz a compra e a venda dos grãos, e o emissor parceiro estrutura a oferta. O dinheiro fica em conta vinculada, nunca com a plataforma." },
   { p: "Como sei que a operação existe?", r: "Cada operação aparece na ficha da oferta com grão, toneladas, origem, comprador, destino, valores e situação. Notas fiscais e comprovantes ficam com o emissor e a auditoria." },
   { p: "O que protege o meu dinheiro?", r: "A própria Rio garante a operação com CCBs lastreadas em imóveis. O dinheiro circula só pela conta vinculada, as cargas têm seguro no transporte e, no vencimento, a Rio recompra os títulos. Não há FGC. A ficha mostra o índice de cobertura das garantias, e abaixo do mínimo novas captações e compras param." },
-  { p: "Quais são os prazos?", r: "12, 24 ou 36 meses. O rendimento pode ser resgatado antes, com pagamento em até 7 dias. O principal volta no vencimento, quando a Rio recompra os títulos." },
+  { p: "Quais são os prazos?", r: "12, 24 ou 36 meses. Os juros são creditados por dia e podem ser resgatados a qualquer momento, com pagamento em até 7 dias. O principal volta no vencimento, quando a Rio recompra os títulos." },
+  { p: "E se eu precisar do principal antes?", r: "Dá para pedir o resgate antecipado, liquidado em até 60 dias. Até 12 meses de permanência, você recebe o principal sem juros; entre 12 e 24 meses, o principal corrigido pelo CDI do período; entre 24 e 36 meses, o principal mais metade da performance acumulada. Juros já sacados são descontados." },
   { p: "Quando a Rio ganha dinheiro?", r: "Por último. Da venda do grão saem primeiro os custos, depois o principal e a remuneração dos investidores. Só o que sobra vira margem da Rio, e o sistema bloqueia retirada antes disso." },
   { p: "Preciso fazer a trilha antes de investir?", r: "Sim. São quatro módulos curtos e um questionário de perfil. Se o produto não combinar com você, avisamos antes de qualquer reserva." },
 ];
@@ -116,7 +117,7 @@ export default function Home() {
           <header className="secao__cab">
             <p className="sobretitulo">Simulador</p>
             <h2>Quanto chega na sua conta, já sem o IR</h2>
-            <p>Taxa diária equivalente composta, mês comercial de 30 dias, IR pela tabela regressiva. Simulação ilustrativa, sem garantia de rentabilidade futura.</p>
+            <p>Taxa mensal nominal com juros creditados por dia e capitalizados, como na tabela progressiva da Rio. IR pela tabela regressiva. Simulação ilustrativa, sem garantia de rentabilidade futura.</p>
           </header>
           <Simulador
             onSimular={(s) => {

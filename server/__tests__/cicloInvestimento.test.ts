@@ -168,11 +168,12 @@ test("ciclo completo: cadastro → contrato → aporte → resgate pago", async 
   const { vencimento } = await ca.admin.contratos.confirmarAporte({ id: contrato.id, inicio });
   assert.equal(vencimento.slice(5, 7), String(((Number(inicio.slice(5, 7)) + 11) % 12) + 1).padStart(2, "0"));
 
-  // painel: 45 dias a 1,4% a.m. sobre 100 mil = 2.100,00
+  // painel: 45 dias a 1,4% a.m. nominal sobre 100 mil, juros diários compostos = 2.092,34
   const painel = await ci.investidor.painel();
   const p = painel.contratos[0]!;
   assert.equal(p.status, "ativo");
-  assert.equal(p.disponivelCentavos, 2_100_00);
+  assert.equal(p.disponivelCentavos, 2_092_34);
+  assert.equal(p.valorNoVencimentoCentavos, Math.round(100_000_00 * Math.pow(1 + 0.014 / 30, 360)));
   assert.equal(p.evolucao.length, 13);
   assert.equal(p.irSeResgatarTudo!.aliquota, 0.225);
 
@@ -187,7 +188,7 @@ test("ciclo completo: cadastro → contrato → aporte → resgate pago", async 
   assert.equal(pedido.liquidoCentavos, 775_00);
   const repetido = await ci.investidor.solicitarResgate({ contratoId: contrato.id, valorCentavos: 1_000_00, idempotencyKey: chave });
   assert.equal(repetido.repetido, true, "clique duplo não duplica");
-  assert.equal((await ci.investidor.painel()).contratos[0]!.disponivelCentavos, 1_100_00);
+  assert.equal((await ci.investidor.painel()).contratos[0]!.disponivelCentavos, 1_092_34);
 
   // admin: pagar antes de aprovar falha; aprovar e pagar
   const [r] = await ca.admin.resgates.listar({ status: "solicitado" });
@@ -206,7 +207,7 @@ test("ciclo completo: cadastro → contrato → aporte → resgate pago", async 
   // recusar devolve o valor ao disponível
   const p2 = await ci.investidor.solicitarResgate({ contratoId: contrato.id, valorCentavos: 500_00, idempotencyKey: crypto.randomUUID() });
   await ca.admin.resgates.recusar({ id: p2.id!, motivo: "Conta divergente" });
-  assert.equal((await ci.investidor.painel()).contratos[0]!.disponivelCentavos, 1_100_00);
+  assert.equal((await ci.investidor.painel()).contratos[0]!.disponivelCentavos, 1_092_34);
 
   // contrato ativo não pode ser cancelado
   await assert.rejects(ca.admin.contratos.cancelar({ id: contrato.id, motivo: "teste" }), /Ativo/);

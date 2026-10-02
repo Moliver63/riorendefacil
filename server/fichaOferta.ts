@@ -123,6 +123,10 @@ function fichaExemplo() {
       ltv: g.valorCentavos / g.garantiaValorCentavos as number | null,
       situacao: g.situacao as string,
       registro: g.registroRef as string | null,
+      serie: g.serie as string | null,
+      emissao: g.dataEmissao as string | null,
+      vencimento: g.vencimento as string,
+      valorResgateCentavos: g.valorResgateCentavos as number | null,
     })),
   };
 }

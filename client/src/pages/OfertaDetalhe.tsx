@@ -12,7 +12,9 @@ import {
   MedidorCobertura,
   OrdemPagamentos,
   RISCOS_GRAOS,
+  RegrasResgateAntecipado,
   TabelaGarantias,
+  TabelaProgressiva,
   TabelaOperacoes,
   brlCurto,
   dataBR,
@@ -134,17 +136,12 @@ export default function OfertaDetalhe({ id }: { id: number }) {
               <div><dt>Cobertura</dt><dd className="num">{formatarCobertura(p.cobertura)}</dd></div>
             </dl>
             <p className="ficha-tese">{f.tese}</p>
-            <details className="ficha-faixas">
-              <summary>Quadro de faixas</summary>
-              <table className="tabela">
-                <thead><tr><th>A partir de</th><th>Prazo mínimo</th><th className="dir">Taxa</th></tr></thead>
-                <tbody>
-                  {(f.faixas as Faixa[]).map((x, i) => (
-                    <tr key={i}><td className="num">{formatarBRL(x.minimoCentavos)}</td><td>{x.prazoMinimoMeses} meses</td><td className="dir num">{formatarPct(x.taxaMensalTeto)} a.m.</td></tr>
-                  ))}
-                </tbody>
-              </table>
-            </details>
+          </section>
+
+          <section className="bloco">
+            <div className="bloco__cab"><h2>Tabela progressiva de rendimentos</h2><span className="bloco__det">juros creditados por dia, pré-fixados</span></div>
+            <TabelaProgressiva faixas={f.faixas as Faixa[]} prazoResgateDias={f.prazoResgateDias} />
+            <p className="bloco__nota">Acumulado no vencimento sem nenhum saque de juros. Se você resgatar juros durante o contrato, o valor sacado deixa de render a partir do pedido.</p>
           </section>
 
           <section className="bloco">
@@ -169,10 +166,15 @@ export default function OfertaDetalhe({ id }: { id: number }) {
           </section>
 
           <section className="bloco">
-            <div className="bloco__cab"><h2>Garantias</h2><span className="bloco__det">{formatarBRL(p.garantiasElegiveisCentavos)} elegíveis</span></div>
+            <div className="bloco__cab"><h2>Carteira de CCBs e garantias</h2><span className="bloco__det">{formatarBRL(p.garantiasElegiveisCentavos)} elegíveis para cobertura</span></div>
             <MedidorCobertura cobertura={p.cobertura} minima={p.coberturaMinima} />
             <TabelaGarantias garantias={f.garantias} />
-            <p className="bloco__nota">LTV é o valor da CCB dividido pela avaliação do imóvel. Elegível é a parte da avaliação que conta para a cobertura.</p>
+            <p className="bloco__nota">Cada CCB tem garantia colateral em imóvel por alienação fiduciária e é emitida em favor da Rio. LTV é o custo da CCB dividido pela avaliação do imóvel. Para a cobertura conta só a parte elegível da avaliação.</p>
+          </section>
+
+          <section className="bloco">
+            <div className="bloco__cab"><h2>Resgate antecipado do principal</h2></div>
+            <RegrasResgateAntecipado />
           </section>
 
           <section className="bloco">
