@@ -19,6 +19,8 @@ const Trilha = lazy(() => import("@/pages/Trilha"));
 const TrilhaModulo = lazy(() => import("@/pages/TrilhaModulo"));
 const Perfil = lazy(() => import("@/pages/Perfil"));
 const Documentos = lazy(() => import("@/pages/Documentos"));
+const Cadastro = lazy(() => import("@/pages/Cadastro"));
+const ContratoDocumento = lazy(() => import("@/pages/ContratoDocumento"));
 
 // Pages - Equipe e Admin (carregadas sob demanda)
 const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
@@ -27,6 +29,8 @@ const AdminComunicacao = lazy(() => import("@/pages/AdminComunicacao"));
 const AdminOfertas = lazy(() => import("@/pages/AdminOfertas"));
 const AdminUsuarios = lazy(() => import("@/pages/AdminUsuarios"));
 const AdminAuditoria = lazy(() => import("@/pages/AdminAuditoria"));
+const AdminInvestidores = lazy(() => import("@/pages/AdminInvestidores"));
+const AdminResgates = lazy(() => import("@/pages/AdminResgates"));
 
 const INVESTIDOR = ["investidor"] as const;
 const EQUIPE = ["assessor", "admin"] as const;
@@ -56,6 +60,8 @@ function Rotas() {
       <Route path="/trilha/:slug">{(p) => <ProtectedRoute roles={[...INVESTIDOR]}><TrilhaModulo slug={p.slug} /></ProtectedRoute>}</Route>
       <Route path="/perfil">{() => <ProtectedRoute roles={[...INVESTIDOR]}><Perfil /></ProtectedRoute>}</Route>
       <Route path="/documentos">{() => <ProtectedRoute roles={[...INVESTIDOR]}><Documentos /></ProtectedRoute>}</Route>
+      <Route path="/cadastro">{() => <ProtectedRoute roles={[...INVESTIDOR]}><Cadastro /></ProtectedRoute>}</Route>
+      <Route path="/contrato/:id">{(p) => <ProtectedRoute roles={[...INVESTIDOR]}><ContratoDocumento id={Number(p.id)} /></ProtectedRoute>}</Route>
 
       {/* ── Equipe (assessor e admin) ── */}
       <Route path="/admin">{() => <ProtectedRoute roles={[...EQUIPE]}><AdminDashboard /></ProtectedRoute>}</Route>
@@ -66,6 +72,8 @@ function Rotas() {
       <Route path="/admin/ofertas">{() => <ProtectedRoute roles={[...ADMIN]}><AdminOfertas /></ProtectedRoute>}</Route>
       <Route path="/admin/usuarios">{() => <ProtectedRoute roles={[...ADMIN]}><AdminUsuarios /></ProtectedRoute>}</Route>
       <Route path="/admin/auditoria">{() => <ProtectedRoute roles={[...ADMIN]}><AdminAuditoria /></ProtectedRoute>}</Route>
+      <Route path="/admin/investidores">{() => <ProtectedRoute roles={[...ADMIN]}><AdminInvestidores /></ProtectedRoute>}</Route>
+      <Route path="/admin/resgates">{() => <ProtectedRoute roles={[...ADMIN]}><AdminResgates /></ProtectedRoute>}</Route>
 
       <Route component={NotFound} />
     </Switch>

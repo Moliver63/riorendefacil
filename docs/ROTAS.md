@@ -23,12 +23,16 @@ Papéis: `investidor`, `assessor`, `admin`. "Equipe" = assessor ou admin.
 | `/trilha/:slug` | `pages/TrilhaModulo.tsx` | investidor |
 | `/perfil` | `pages/Perfil.tsx` | investidor |
 | `/documentos` | `pages/Documentos.tsx` | investidor |
+| `/cadastro` | `pages/Cadastro.tsx` | investidor |
+| `/contrato/:id` | `pages/ContratoDocumento.tsx` | investidor (só os próprios) |
 | `/admin` | `pages/AdminDashboard.tsx` | equipe |
 | `/admin/leads` | `pages/AdminLeads.tsx` | equipe |
 | `/admin/comunicacao` | `pages/AdminComunicacao.tsx` | equipe |
 | `/admin/ofertas` | `pages/AdminOfertas.tsx` | admin |
 | `/admin/usuarios` | `pages/AdminUsuarios.tsx` | admin |
 | `/admin/auditoria` | `pages/AdminAuditoria.tsx` | admin |
+| `/admin/investidores` | `pages/AdminInvestidores.tsx` | admin |
+| `/admin/resgates` | `pages/AdminResgates.tsx` | admin |
 | qualquer outra | `pages/NotFound.tsx` | público |
 
 Sem login, quem abre uma página protegida vai para `/entrar?voltar=...`. Logado com papel errado, vai para o início do próprio papel (`/painel` ou `/admin`). O bloqueio de verdade é no servidor: a guarda do cliente é só navegação.
@@ -89,11 +93,17 @@ Leitura é `query` (GET), escrita é `mutation` (POST). Formato superjson.
 | `investidor.atualizarPerfil` | mutation | investidor | nome e telefone |
 | `investidor.questoesSuitability` | query | investidor | perguntas do perfil |
 | `investidor.salvarSuitability` | mutation | investidor | calcula e grava o perfil |
-| `investidor.painel` | query | investidor | contratos e rendimento disponível |
+| `investidor.cadastro` | query | investidor | cadastro completo (decifrado) para revisar |
+| `investidor.salvarCadastro` | mutation | investidor | grava cadastro; CPF, RG, conta e Pix cifrados; CPF único por conta |
+| `investidor.painel` | query | investidor | contratos, saldo, rendimento disponível, IR estimado e curva de evolução |
+| `investidor.contrato` | query | investidor | um contrato próprio com a qualificação congelada |
+| `investidor.extrato` | query | investidor | aporte e resgates do contrato |
+| `investidor.previaResgate` | query | investidor | IR e líquido de um valor antes de pedir |
+| `investidor.resgates` | query | investidor | pedidos de resgate |
 | `investidor.documentos` | query | investidor | documentos visíveis para a conta |
 | `investidor.baixarDocumento` | mutation | investidor | URL assinada de 5 min, se o documento for da conta |
-| `investidor.manifestarInteresse` | mutation | investidor | exige trilha e perfil adequado |
-| `investidor.solicitarResgate` | mutation | investidor | travado até o emissor estar habilitado; idempotente |
+| `investidor.manifestarInteresse` | mutation | investidor | exige trilha, perfil adequado e cadastro |
+| `investidor.solicitarResgate` | mutation | investidor | só contrato ativo e emissor habilitado; IR gravado; idempotente |
 
 ### admin · `_core/adminRouter.ts`
 | Procedure | Tipo | Acesso | Descrição |
@@ -114,6 +124,18 @@ Leitura é `query` (GET), escrita é `mutation` (POST). Formato superjson.
 | `admin.usuarios.listar` | query | admin | usuários |
 | `admin.usuarios.mudarPapel` | mutation | admin | troca papel e derruba sessões antigas |
 | `admin.auditoria` | query | admin | últimos 200 eventos |
+| `admin.investidores.listar` | query | admin | investidores com etapas (trilha, perfil, cadastro) e CPF mascarado |
+| `admin.investidores.detalhe` | query | admin | ficha decifrada; cada abertura vai para a auditoria |
+| `admin.contratos.listar` | query | admin | contratos, filtro por status |
+| `admin.contratos.criar` | mutation | admin | exige emissor habilitado, oferta ativa, trilha, perfil e cadastro; taxa vem da faixa |
+| `admin.contratos.marcarAssinado` | mutation | admin | aguardando_assinatura → aguardando_aporte |
+| `admin.contratos.confirmarAporte` | mutation | admin | aguardando_aporte → ativo; define início e vencimento |
+| `admin.contratos.cancelar` | mutation | admin | só antes de ativo |
+| `admin.contratos.extrato` | query | admin | extrato de um contrato |
+| `admin.resgates.listar` | query | admin | pedidos com conta de destino |
+| `admin.resgates.aprovar` | mutation | admin | solicitado → aprovado |
+| `admin.resgates.marcarPago` | mutation | admin | aprovado → pago, avisa o investidor |
+| `admin.resgates.recusar` | mutation | admin | com motivo, avisa o investidor |
 
 ## Como adicionar uma rota nova
 

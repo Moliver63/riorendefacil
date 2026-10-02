@@ -11,7 +11,7 @@ const CSP = [
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com",
   "img-src 'self' data: https:",
-  "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://*.clarity.ms https://*.r2.cloudflarestorage.com",
+  "connect-src 'self' https://*.google-analytics.com https://*.analytics.google.com https://www.facebook.com https://*.clarity.ms https://*.r2.cloudflarestorage.com https://viacep.com.br",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self' https://accounts.google.com",

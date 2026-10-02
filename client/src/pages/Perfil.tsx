@@ -109,6 +109,21 @@ export default function Perfil() {
       </section>
 
       <section className="bloco">
+        <div className="bloco__cab">
+          <h2>Cadastro do investidor</h2>
+          {p?.cadastroCompletoEm && <span className="status status--adimplente">Completo</span>}
+        </div>
+        <p className="bloco__nota" style={{ margin: "0 0 16px" }}>
+          {p?.cadastroCompletoEm
+            ? `Atualizado em ${new Date(p.cadastroCompletoEm).toLocaleDateString("pt-BR")}. É a base da qualificação no seu contrato.`
+            : "CPF, endereço, perfil financeiro e conta para resgate. É a base da qualificação no seu contrato."}
+        </p>
+        <Link href="/cadastro" className={`btn btn--peq ${p?.cadastroCompletoEm ? "btn--ghost" : "btn--primario"}`}>
+          {p?.cadastroCompletoEm ? "Revisar cadastro" : "Preencher cadastro"}
+        </Link>
+      </section>
+
+      <section className="bloco">
         <h2>Conversar sobre aporte</h2>
         {p?.interesseAporteEm ? (
           <p className="aviso aviso--ok">

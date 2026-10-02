@@ -56,13 +56,21 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - OAuth client criado pelo Michel no projeto Google Cloud `megaprop-452515`, modo Testing. Pendências: GOOGLE_CLIENT_ID/SECRET no Render, trocar o secret (foi colado no chat), ajustar nome do app na tela de consentimento, adicionar test users ou publicar.
 - 38 testes, incluindo o fluxo completo do Google com respostas simuladas.
 
+## Sessão 05 · 02/10/2026 · cadastro e ciclo do investimento
+
+- Cadastro do investidor em 5 etapas (`/cadastro`): dados pessoais, endereço (ViaCEP), perfil financeiro e PEP, conta para resgate, revisão com declaração. Validado pelo mesmo esquema no cliente e no servidor (`shared/cadastro.ts`). Dados sensíveis cifrados.
+- Ciclo completo: admin gera contrato pela ficha do investidor → investidor lê o termo (`/contrato/:id`, imprimível) → admin marca assinado → confirma aporte com data de início e comprovante → contrato ativo → painel com saldo, rendimento disponível, gráfico e extrato → investidor pede resgate com prévia de IR → admin aprova e marca pago.
+- Geração de contrato travada até `EMISSOR_AUTORIZADO` e dados do emissor estarem no ambiente. Assinatura ainda é marcada à mão pelo admin.
+- Migração `drizzle/0001_cadastro_e_ciclo.sql`, só aditiva. 45 testes, incluindo o ciclo inteiro. Fluxo conferido no navegador em desktop e celular.
+
 ## Pendências
 
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.
 - Parecer de advogado de mercado de capitais sobre oferta, publicidade e simulador.
 - KYC e PLD (provedor a escolher).
-- Assinatura digital (Clicksign, ZapSign ou D4Sign) e cadastro de contrato pelo admin.
-- Tela de resgate no painel (o endpoint existe e está testado).
+- Assinatura digital (Clicksign, ZapSign ou D4Sign) integrada; hoje o admin marca como assinado.
+- `DADOS_SECRET` no Render antes de cadastros reais.
+- Minuta oficial do emissor para substituir o termo de adesão resumido.
 - Imagem `client/public/og.png` para compartilhamento.
 - Atualizar `shared/mercado.ts` com fonte oficial antes de publicar.
 - Validar o questionário de suitability com o emissor e o jurídico.

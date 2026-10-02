@@ -102,7 +102,9 @@ export async function extratoDoContrato(c: Contrato) {
     .orderBy(desc(resgatesRendimento.solicitadoEm));
   const lancamentos: { data: string; tipo: "aporte" | "resgate"; descricao: string; valorCentavos: number; status?: string }[] = [];
   if (c.ativadoEm) {
-    lancamentos.push({ data: c.ativadoEm.toISOString(), tipo: "aporte", descricao: "Aporte confirmado na conta vinculada", valorCentavos: c.principalCentavos });
+    // data do lançamento = início do rendimento (quando o dinheiro entrou), não o dia em que o admin registrou
+    const quando = c.inicio ? new Date(`${c.inicio}T12:00:00Z`) : c.ativadoEm;
+    lancamentos.push({ data: quando.toISOString(), tipo: "aporte", descricao: "Aporte na conta vinculada, início do rendimento", valorCentavos: c.principalCentavos });
   }
   for (const r of resgates) {
     lancamentos.push({
