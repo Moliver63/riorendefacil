@@ -1,8 +1,12 @@
 import { useState } from "react";
-import { trpc } from "../trpc";
+import { Link } from "wouter";
+import { trpc } from "../lib/trpc";
+import { rastrear } from "../lib/analytics";
 
-export function FormContato({ simulacao }: { simulacao?: unknown }) {
-  const criar = trpc.leads.criar.useMutation();
+export type SimulacaoLead = { aporte: number; prazo: number; saldoLiquido: number };
+
+export function FormContato({ simulacao }: { simulacao?: SimulacaoLead }) {
+  const criar = trpc.leads.criar.useMutation({ onSuccess: () => rastrear("lead") });
   const [consent, setConsent] = useState(false);
 
   if (criar.isSuccess) {
@@ -12,6 +16,9 @@ export function FormContato({ simulacao }: { simulacao?: unknown }) {
         <p>
           Um especialista vai falar com você para entender seu momento e explicar a estrutura. Nenhum aporte acontece
           antes de você ler o contrato e os riscos com calma.
+        </p>
+        <p>
+          Enquanto isso, <Link href="/entrar">crie seu acesso</Link> e faça a trilha "Antes de investir". São poucos minutos.
         </p>
       </div>
     );
@@ -66,7 +73,7 @@ export function FormContato({ simulacao }: { simulacao?: unknown }) {
           contato não é oferta de investimento.
         </span>
       </label>
-      {criar.error && <p className="form__erro">Confira os campos e tente de novo.</p>}
+      {criar.error && <p className="form__erro">{criar.error.message}</p>}
       <button className="btn btn--primario btn--largo" disabled={!consent || criar.isPending}>
         {criar.isPending ? "Enviando…" : "Falar com especialista"}
       </button>

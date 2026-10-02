@@ -1,39 +1,38 @@
 # RioRendeFácil
 
-Plataforma de tecnologia para captação e portal do investidor em renda fixa estruturada (CCB). O RioRendeFácil **não é emissor**: as CCBs são emitidas, custodiadas e ofertadas pelo emissor parceiro licenciado. Dinheiro de investidor nunca passa por conta da plataforma.
+Plataforma de tecnologia para captação e portal do investidor em renda fixa estruturada (CCB). O RioRendeFácil **não é emissor**: as CCBs são emitidas, custodiadas e ofertadas pelo emissor parceiro licenciado. Dinheiro de investidor nunca passa pela plataforma.
 
 ## Rodar
 
 ```bash
 cp .env.example .env
 npm install
-npm run dev        # web em :5173, api em :3001
-npm test           # 19 testes (cálculo financeiro + revisor de comunicação)
-npm run check      # typecheck
-npm run build && NODE_ENV=production npm start
+npm run dev      # http://localhost:3000 (Postgres embutido via PGlite, nada para instalar)
+npm test         # 35 testes: finanças, revisor, integração com banco e HTTP
+npm run check    # tipos
 ```
 
-Sem `DATABASE_URL`, os leads ficam em memória (só desenvolvimento).
+Para entrar como admin no ambiente local: coloque seu e-mail em `ADMIN_EMAILS` no `.env`, abra `/entrar` e use o link que aparece na tela (sem Resend configurado, o link é exibido direto).
 
-## Telas
+## O que tem
 
-| Rota | O que é |
+| Área | Rotas |
 |---|---|
-| `/` | Landing: hero com composição do pool, como funciona, simulador líquido de IR, lastro, riscos, FAQ, contato |
-| `/investidor` | Painel do investidor (dados de demonstração) |
-| `/interno/compliance` | Revisor de anúncios e copy antes de publicar |
+| Site público | `/`, `/conteudo`, `/conteudo/:slug`, `/entrar` |
+| Investidor | `/painel`, `/trilha`, `/trilha/:modulo`, `/perfil`, `/documentos` |
+| Equipe | `/admin`, `/admin/leads`, `/admin/comunicacao` |
+| Admin | `/admin/ofertas`, `/admin/usuarios`, `/admin/auditoria` |
 
-## Emissor parceiro
+## Documentação
 
-Controlado por `EMISSOR_AUTORIZADO` no `.env`. Com `false`, nenhuma marca de emissor aparece, as taxas são marcadas como exemplo e o resgate fica desligado. Só mude para `true` com contrato assinado e autorização de uso de marca por escrito. Ver `docs/COMPLIANCE.md`.
+- `docs/ARQUITETURA.md`: estrutura, fluxo do investidor e de onde veio cada padrão (Caro, Shadia, MecProAI)
+- `docs/SEGURANCA.md`: sessão, login, dados e lições dos outros projetos
+- `docs/COMPLIANCE.md`: checklist antes de captar e perguntas para o advogado
+- `docs/FRAMEWORK_EXCELENCIA.md`: regras de código e comunicação
+- `docs/SYSTEM_MEMORY.md`: histórico por sessão
 
-## Estrutura
+## Deploy
 
-```
-shared/   finance.ts (juros, IR, simulação)  complianceGuard.ts  issuer.ts  mercado.ts
-server/   index.ts (Express)  router.ts (tRPC)  schema.ts (Drizzle)  repo.ts
-client/   src/pages  src/components  styles.css
-docs/     SYSTEM_MEMORY.md  FRAMEWORK_EXCELENCIA.md  COMPLIANCE.md
-```
+`render.yaml` cria o web service, o Postgres e o cron de lembretes. As migrações rodam sozinhas no boot.
 
 Desenvolvido por Lab Quântico de Software.

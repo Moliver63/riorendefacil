@@ -1,0 +1,50 @@
+services:
+  - type: web
+    name: riorendefacil
+    runtime: node
+    plan: starter
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        fromDatabase:
+          name: riorendefacil-db
+          property: connectionString
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: CRON_SECRET
+        generateValue: true
+      - key: APP_URL
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
+      - key: EMAILS_ASSESSORES
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: EMISSOR_AUTORIZADO
+        value: "false"
+
+  # Lembretes: leads parados e trilha abandonada. Chama o próprio web service.
+  - type: cron
+    name: riorendefacil-lembretes
+    runtime: node
+    schedule: "0 12 * * *" # 09h em Brasília
+    buildCommand: "true"
+    startCommand: 'curl -fsS -X POST -H "Authorization: Bearer $CRON_SECRET" "$APP_URL/api/cron/lembretes"'
+    envVars:
+      - key: APP_URL
+        sync: false
+      - key: CRON_SECRET
+        fromService:
+          type: web
+          name: riorendefacil
+          envVarKey: CRON_SECRET
+
+databases:
+  - name: riorendefacil-db
+    plan: basic-256mb

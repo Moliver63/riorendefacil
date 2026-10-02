@@ -19,7 +19,14 @@ Regras que valem para todo código e toda comunicação do projeto.
 10. Sem marca de terceiro sem autorização escrita.
 
 ## Engenharia (herdado do MecProAI)
-11. Nunca `drizzle-kit push` em produção. Migração SQL revisada, aplicada à mão.
+11. Nunca `drizzle-kit push`. Migração gerada com `npm run db:generate`, revisada no PR e aplicada no boot pelo migrator do Drizzle.
 12. Regex em pt-BR: nada de `\b` ao lado de vogal acentuada; nada de regex em template string com barra simples.
 13. Parser JSON registrado antes das rotas.
 14. `npm test` e `npm run check` passando antes de todo commit.
+
+## Sessão e acesso
+15. Sessão só por JWT assinado. Cookie em texto puro nunca identifica ninguém.
+16. Todo segredo vem do ambiente; em produção, ausência derruba o boot. Nada de valor padrão no código.
+17. Tokens aleatórios só com `crypto`. Nunca `Math.random`.
+18. Procedure nova começa como `protectedProcedure` ou `comPapel(...)`. Pública só com motivo.
+19. Nenhum arquivo com senha, chave ou URL de banco no repositório, nem em script de diagnóstico.

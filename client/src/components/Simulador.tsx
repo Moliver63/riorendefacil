@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { trpc } from "../trpc";
+import { trpc } from "../lib/trpc";
 import { formatarBRL, formatarPct } from "@shared/finance";
 
 const APORTES = [5_000, 10_000, 30_000, 50_000, 100_000, 250_000, 500_000, 1_000_000];
 
-export function Simulador({ onSimular }: { onSimular?: (s: unknown) => void }) {
+export function Simulador({ onSimular }: { onSimular?: (s: { aporte: number; prazo: number; saldoLiquido: number }) => void }) {
   const [idxAporte, setIdxAporte] = useState(4);
   const [prazo, setPrazo] = useState(12);
   const [liquido, setLiquido] = useState(true);

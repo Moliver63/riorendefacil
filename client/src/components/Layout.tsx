@@ -1,10 +1,10 @@
-import { Link } from "react-router-dom";
-import { trpc } from "../trpc";
+import { Link, useLocation } from "wouter";
+import { trpc } from "../lib/trpc";
 import { AVISO_RISCO } from "@shared/complianceGuard";
 
 export function Marca({ claro = false }: { claro?: boolean }) {
   return (
-    <Link to="/" className={`marca ${claro ? "marca--claro" : ""}`} aria-label="RioRendeFácil, início">
+    <Link href="/" className={`marca ${claro ? "marca--claro" : ""}`} aria-label="RioRendeFácil, início">
       <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
         <rect width="28" height="28" rx="7" fill="currentColor" opacity="0.12" />
         <path d="M4 17c3-3 6-3 9 0s6 3 11-2" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" />
@@ -18,21 +18,26 @@ export function Marca({ claro = false }: { claro?: boolean }) {
 }
 
 export function Topo() {
+  const { data: eu } = trpc.auth.eu.useQuery();
+  const [loc] = useLocation();
+  const ancora = (id: string) => (loc === "/" ? `#${id}` : `/#${id}`);
+  const destino = eu ? (eu.papel === "investidor" ? "/painel" : "/admin") : "/entrar";
+
   return (
     <header className="topo">
       <div className="topo__in">
         <Marca />
         <nav className="topo__nav" aria-label="Principal">
-          <a href="#como-funciona">Como funciona</a>
-          <a href="#simulador">Simulador</a>
-          <a href="#lastro">Lastro</a>
-          <a href="#riscos">Riscos</a>
+          <a href={ancora("como-funciona")}>Como funciona</a>
+          <a href={ancora("simulador")}>Simulador</a>
+          <a href={ancora("riscos")}>Riscos</a>
+          <Link href="/conteudo">Conteúdo</Link>
         </nav>
         <div className="topo__acoes">
-          <Link to="/investidor" className="btn btn--ghost">
-            Área do investidor
+          <Link href={destino} className="btn btn--ghost">
+            {eu ? "Minha área" : "Entrar"}
           </Link>
-          <a href="#contato" className="btn btn--primario">
+          <a href={ancora("contato")} className="btn btn--primario">
             Falar com especialista
           </a>
         </div>
@@ -78,6 +83,12 @@ export function Rodape() {
             custodiadas pelo emissor parceiro, e os recursos transitam apenas por conta vinculada em nome dele.
           </p>
         </div>
+        <nav className="rodape__links" aria-label="Rodapé">
+          <Link href="/conteudo">Conteúdo</Link>
+          <Link href="/conteudo/o-que-e-ccb">O que é CCB</Link>
+          <Link href="/conteudo/investimento-sem-fgc">Investimento sem FGC</Link>
+          <Link href="/entrar">Entrar</Link>
+        </nav>
         <SeloEmissor />
       </div>
       <p className="rodape__aviso">
@@ -87,5 +98,15 @@ export function Rodape() {
       </p>
       <p className="rodape__cred">Desenvolvido por Lab Quântico de Software</p>
     </footer>
+  );
+}
+
+export function PaginaPublica({ children }: { children: React.ReactNode }) {
+  return (
+    <>
+      <Topo />
+      <main>{children}</main>
+      <Rodape />
+    </>
   );
 }
