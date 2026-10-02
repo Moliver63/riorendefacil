@@ -122,12 +122,12 @@ const certas = (slug: string) => Object.fromEntries(TRILHA.find((m) => m.slug ==
 const erradas = (slug: string) =>
   Object.fromEntries(TRILHA.find((m) => m.slug === slug)!.perguntas.map((p) => [p.id, (p.correta + 1) % p.opcoes.length]));
 
-test("trilha: módulos abrem em ordem, reprovação não conta, conclusão grava data", async () => {
+test("trilha: leitura livre; respostas antigas ainda corrigem e gravam data", async () => {
   const u = await encontrarOuCriarUsuario({ email: "trilha@exemplo.com" });
   const c = caller(u);
   const [m1, m2] = TRILHA;
 
-  await assert.rejects(c.trilha.modulo({ slug: m2!.slug }), { code: "FORBIDDEN" });
+  assert.equal((await c.trilha.modulo({ slug: m2!.slug })).slug, m2!.slug, "qualquer módulo abre");
   const mod = await c.trilha.modulo({ slug: m1!.slug });
   assert.ok(!("correta" in mod.perguntas[0]!), "gabarito não vaza para o cliente");
 
@@ -143,22 +143,14 @@ test("trilha: módulos abrem em ordem, reprovação não conta, conclusão grava
   assert.ok((await c.investidor.perfil()).trilhaConcluidaEm);
 });
 
-test("interesse em aporte exige trilha e perfil adequado", async () => {
+test("interesse em aporte exige só o cadastro (trilha e perfil são opcionais)", async () => {
   const u = await encontrarOuCriarUsuario({ email: "interesse@exemplo.com" });
   const c = caller(u);
-  await assert.rejects(c.investidor.manifestarInteresse(), /trilha/);
-
-  for (const m of TRILHA) await c.trilha.responder({ slug: m.slug, respostas: certas(m.slug) });
-  await assert.rejects(c.investidor.manifestarInteresse(), /questionário/);
-
-  const semReserva = await c.investidor.salvarSuitability({ respostas: { objetivo: 1, prazo: 2, reserva: 0, experiencia: 1, perda: 1 } });
-  assert.equal(semReserva.adequado, false);
-  await assert.rejects(c.investidor.manifestarInteresse(), /reserva/);
-
-  const ok = await c.investidor.salvarSuitability({ respostas: { objetivo: 1, prazo: 2, reserva: 2, experiencia: 1, perda: 1 } });
-  assert.equal(ok.adequado, true);
-  // desde a sessão 05, o cadastro completo também é exigido (testado no ciclo completo)
   await assert.rejects(c.investidor.manifestarInteresse(), /cadastro/);
+  assert.deepEqual((await c.investidor.pendencias()).map((p) => p.etapa), ["cadastro"]);
+  // módulos da trilha abrem em qualquer ordem
+  const ultimo = TRILHA.at(-1)!;
+  assert.equal((await c.trilha.modulo({ slug: ultimo.slug })).slug, ultimo.slug);
 });
 
 test("resgate fica travado enquanto o emissor não está habilitado", async () => {

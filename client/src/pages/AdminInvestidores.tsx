@@ -132,8 +132,8 @@ function Ficha({ id, onFechar }: { id: number; onFechar: () => void }) {
   const [reservaSel, setReservaSel] = useState<ReservaSel | undefined>();
   if (isLoading || !d) return <div className="ficha"><p className="carregando">Carregando…</p></div>;
   const cad = d.cadastro;
-  const apto = Boolean(d.trilhaConcluidaEm && d.perfil?.adequado && cad);
-  const motivo = !d.trilhaConcluidaEm ? "trilha não concluída" : !d.perfil?.adequado ? (d.perfil?.motivo ?? "perfil não avaliado") : !cad ? "cadastro incompleto" : null;
+  const apto = Boolean(cad);
+  const motivo = !cad ? "cadastro incompleto" : null;
 
   return (
     <div className="ficha" role="dialog" aria-label={`Ficha de ${cad?.nomeCompleto ?? d.email}`}>
@@ -207,7 +207,7 @@ export default function AdminInvestidores() {
   const [aberto, setAberto] = useState<number | null>(null);
   const [filtro, setFiltro] = useState<"todos" | "prontos" | "interesse">("todos");
   const lista = (listaInvestidores ?? []).filter((i) =>
-    filtro === "todos" ? true : filtro === "interesse" ? Boolean(i.interesseAporteEm) : Boolean(i.trilhaConcluidaEm && i.perfilAdequado && i.cadastroEm),
+    filtro === "todos" ? true : filtro === "interesse" ? Boolean(i.interesseAporteEm) : Boolean(i.cadastroEm),
   );
 
   return (
@@ -233,8 +233,6 @@ export default function AdminInvestidores() {
                   <tr key={i.id}>
                     <td><strong>{i.nomeCompleto ?? i.nome ?? "Sem nome"}</strong><span className="sub">{i.email}{i.cpfMascarado ? ` · ${i.cpfMascarado}` : ""}</span></td>
                     <td className="checks">
-                      <Marca ok={Boolean(i.trilhaConcluidaEm)} texto="Trilha" />
-                      <Marca ok={i.perfilAdequado} texto="Perfil" />
                       <Marca ok={Boolean(i.cadastroEm)} texto="Cadastro" />
                       {i.ppe && <span className="status status--alerta">PEP</span>}
                     </td>

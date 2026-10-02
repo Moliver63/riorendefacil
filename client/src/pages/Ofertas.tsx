@@ -44,8 +44,8 @@ export default function Ofertas() {
         </div>
       )}
       <p className="bloco__nota" style={{ marginTop: 24 }}>
-        Rentabilidade contratada não é garantia de retorno. Não há cobertura do FGC. Antes de reservar, leia os riscos na ficha e conclua a{" "}
-        <Link href="/trilha">trilha Antes de investir</Link>.
+        Rentabilidade contratada não é garantia de retorno. Não há cobertura do FGC. Antes de reservar, leia os riscos na ficha e as{" "}
+        <Link href="/trilha">leituras Antes de investir</Link>.
       </p>
     </MolduraOferta>
   );

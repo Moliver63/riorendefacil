@@ -146,8 +146,8 @@ export const investimentosRoutes = {
     ),
 
     /**
-     * Cria o contrato. Exige emissor habilitado, oferta ativa, trilha concluída,
-     * perfil adequado e cadastro completo. A taxa sai do quadro de faixas da
+     * Cria o contrato. Exige emissor habilitado, oferta ativa e cadastro completo.
+     * A taxa sai do quadro de faixas da
      * oferta; o admin não digita taxa.
      */
     criar: adminProcedure
@@ -171,9 +171,6 @@ export const investimentosRoutes = {
 
         const [inv] = await db.select().from(investidores).where(eq(investidores.id, input.investidorId)).limit(1);
         if (!inv) throw new TRPCError({ code: "NOT_FOUND", message: "Investidor não encontrado." });
-        if (!inv.trilhaConcluidaEm) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O investidor ainda não concluiu a trilha." });
-        const perfil = inv.suitabilityRespostas as { adequado?: boolean } | null;
-        if (!perfil?.adequado) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Perfil do investidor não avaliado ou não adequado." });
         const cad = await getCadastro(inv.id);
         if (!cad) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O investidor ainda não completou o cadastro." });
 

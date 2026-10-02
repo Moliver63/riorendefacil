@@ -81,6 +81,12 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - CCB ganhou série, data de emissão e valor de resgate no vencimento (migração 0003). Ficha mostra a carteira de CCBs no formato de quadro resumo, a tabela progressiva e as regras de resgate antecipado (D+60; até 12 meses só principal; 12 a 24 meses principal + CDI; 24 a 36 meses 50% da performance).
 - Painel: aba Evolução com saldo realizado, projeção sem saques até o vencimento, linha do principal, detalhe ao passar o mouse e tabela mês a mês.
 
+## Sessão 08 · 02/10/2026 · só cadastro como etapa obrigatória
+
+- Pedido de Michel: tirar o questionário da trilha e deixar só o cadastro. Removidos o questionário de perfil (suitability) e as perguntas da trilha. A trilha virou leitura livre (qualquer módulo abre, com anterior/próximo e chamada para o cadastro).
+- Única exigência para reservar, manifestar interesse e gerar contrato: cadastro completo. Próximos passos do painel: cadastro → reserva.
+- O código de suitability continua no servidor, sem uso na interface, caso o distribuidor exija depois.
+
 ## Pendências
 
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.
@@ -95,7 +101,7 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - Integração com o motor de viabilidade do LogPro para avaliar cada operação antes da compra.
 - Imagem `client/public/og.png` para compartilhamento.
 - Atualizar `shared/mercado.ts` com fonte oficial antes de publicar.
-- Validar o questionário de suitability com o emissor e o jurídico.
+- Suitability (Resolução CVM 30) fica a cargo do distribuidor; confirmar com o jurídico quem aplica antes de captar.
 
 ## Histórico de pendências da sessão 01
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.

@@ -131,8 +131,8 @@ export default function ContratoDocumento({ id }: { id: number }) {
           <h2>4. Riscos</h2>
           <p>{AVISO_RISCO}</p>
           <p>
-            O investidor declara ter concluído a trilha educativa da plataforma, ter respondido o questionário de perfil e
-            compreender que o principal permanece indisponível até o vencimento.
+            O investidor declara ter lido as condições, as garantias e os riscos da oferta e compreender que o principal
+            permanece até o vencimento, salvo pelo resgate antecipado nas condições acima.
           </p>
         </section>
 

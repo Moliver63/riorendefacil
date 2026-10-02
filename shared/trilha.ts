@@ -140,7 +140,7 @@ export const TRILHA: Modulo[] = [
     paragrafos: [
       "O imposto de renda sobre renda fixa segue a tabela regressiva: 22,5% até 180 dias, 20% até 360, 17,5% até 720 e 15% acima disso, sempre sobre o rendimento, nunca sobre o principal.",
       "Por isso mostramos o valor líquido por padrão. Comparar o bruto de um investimento com a poupança, que é isenta, faz qualquer produto parecer melhor do que é.",
-      "Rentabilidade simulada é uma projeção com as condições de hoje. Não é promessa: atrasos e inadimplência no pool reduzem o resultado.",
+      "Rentabilidade simulada é uma projeção com as condições de hoje. Não é promessa: atrasos de compradores e queda no preço do grão podem afetar as operações.",
     ],
     perguntas: [
       {

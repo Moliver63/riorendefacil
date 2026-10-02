@@ -26,8 +26,9 @@ export const trilhaRouter = router({
     const m = TRILHA.find((x) => x.slug === input.slug);
     const e = estado.modulos.find((x) => x.slug === input.slug);
     if (!m || !e) throw new TRPCError({ code: "NOT_FOUND", message: "Módulo não encontrado." });
-    if (!e.liberado) throw new TRPCError({ code: "FORBIDDEN", message: "Conclua o módulo anterior primeiro." });
-    return { ...moduloSemGabarito(m), concluido: e.concluido };
+    // leitura livre: a trilha é conteúdo opcional, sem questionário obrigatório
+    const i = TRILHA.indexOf(m);
+    return { ...moduloSemGabarito(m), concluido: e.concluido, anterior: TRILHA[i - 1]?.slug ?? null, proximo: TRILHA[i + 1]?.slug ?? null };
   }),
 
   responder: investidorProcedure

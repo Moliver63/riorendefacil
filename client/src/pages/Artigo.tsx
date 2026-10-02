@@ -43,8 +43,8 @@ export default function Artigo({ params }: { params: { slug: string } }) {
         ))}
         <aside className="artigo__cta">
           <strong>Quer entender a estrutura com calma?</strong>
-          <p>A trilha "Antes de investir" leva poucos minutos e é obrigatória antes de qualquer aporte.</p>
-          <Link href="/entrar" className="btn btn--primario">Começar a trilha</Link>
+          <p>Veja as ofertas abertas, com operações, garantias e riscos. Para reservar, basta o cadastro.</p>
+          <Link href="/ofertas" className="btn btn--primario">Ver ofertas</Link>
         </aside>
         {outros.length > 0 && (
           <div className="artigo__outros">

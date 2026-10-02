@@ -30,7 +30,7 @@ const FAQ = [
   { p: "Quais são os prazos?", r: "12, 24 ou 36 meses. Os juros são creditados por dia e podem ser resgatados a qualquer momento, com pagamento em até 7 dias. O principal volta no vencimento, quando a Rio recompra os títulos." },
   { p: "E se eu precisar do principal antes?", r: "Dá para pedir o resgate antecipado, liquidado em até 60 dias. Até 12 meses de permanência, você recebe o principal sem juros; entre 12 e 24 meses, o principal corrigido pelo CDI do período; entre 24 e 36 meses, o principal mais metade da performance acumulada. Juros já sacados são descontados." },
   { p: "Quando a Rio ganha dinheiro?", r: "Por último. Da venda do grão saem primeiro os custos, depois o principal e a remuneração dos investidores. Só o que sobra vira margem da Rio, e o sistema bloqueia retirada antes disso." },
-  { p: "Preciso fazer a trilha antes de investir?", r: "Sim. São quatro módulos curtos e um questionário de perfil. Se o produto não combinar com você, avisamos antes de qualquer reserva." },
+  { p: "O que preciso para investir?", r: "Só o cadastro do investidor: dados pessoais, endereço, perfil financeiro e conta para resgate. Ele vira a qualificação do seu contrato. As leituras \"Antes de investir\" ficam disponíveis para quem quiser entender melhor." },
 ];
 
 export default function Home() {
@@ -132,10 +132,10 @@ export default function Home() {
         <div className="secao__in secao__in--duas">
           <header className="secao__cab">
             <p className="sobretitulo">Antes de investir</p>
-            <h2>Uma trilha curta antes de qualquer aporte</h2>
-            <p>Ninguém investe aqui sem entender o que está comprando. São quatro módulos de poucos minutos, com perguntas no fim de cada um, e um questionário de perfil.</p>
+            <h2>Quatro leituras curtas antes de investir</h2>
+            <p>Para entender o que você está comprando: como o lastro em grãos funciona, as garantias, os riscos e o imposto. Leitura livre, sem prova.</p>
             <Link href="/entrar" className="btn btn--primario" style={{ marginTop: 24 }}>
-              Começar a trilha
+              Ler antes de investir
             </Link>
           </header>
           <ol className="lista-trilha">

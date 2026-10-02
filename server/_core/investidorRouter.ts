@@ -29,15 +29,11 @@ import {
 
 const investidorProcedure = comPapel("investidor");
 
-type Pendencia = { etapa: "trilha" | "perfil" | "cadastro"; mensagem: string; href: string };
+type Pendencia = { etapa: "cadastro"; mensagem: string; href: string };
 
-/** Etapas obrigatórias antes de reservar ou ter contrato. */
+/** Etapa obrigatória antes de reservar ou ter contrato: o cadastro. A trilha é leitura opcional. */
 async function pendenciasDoInvestidor(inv: Awaited<ReturnType<typeof getOrCreateInvestidor>>): Promise<Pendencia[]> {
   const p: Pendencia[] = [];
-  if (!inv.trilhaConcluidaEm) p.push({ etapa: "trilha", mensagem: "Conclua a trilha \"Antes de investir\" primeiro.", href: "/trilha" });
-  const r = inv.suitabilityRespostas as { adequado?: boolean; motivo?: string } | null;
-  if (!r) p.push({ etapa: "perfil", mensagem: "Responda o questionário de perfil primeiro.", href: "/perfil" });
-  else if (!r.adequado) p.push({ etapa: "perfil", mensagem: r.motivo ?? "Produto não adequado ao seu perfil.", href: "/perfil" });
   if (!(await getCadastro(inv.id))) p.push({ etapa: "cadastro", mensagem: "Complete seu cadastro primeiro. Ele é a base do contrato.", href: "/cadastro" });
   return p;
 }
@@ -317,7 +313,7 @@ export const investidorRouter = router({
   }),
 
   /**
-   * Manifestação de interesse em aporte. Exige trilha, perfil adequado e
+   * Manifestação de interesse em aporte. Exige só o
    * cadastro completo. Não movimenta dinheiro: avisa a equipe.
    */
   /** Ficha da oferta, inclusive encerrada, se o investidor tiver contrato nela. */
@@ -408,12 +404,6 @@ export const investidorRouter = router({
 
   manifestarInteresse: investidorProcedure.mutation(async ({ ctx }) => {
     const inv = await meuInvestidor(ctx.usuario.id);
-    if (!inv.trilhaConcluidaEm) {
-      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Conclua a trilha \"Antes de investir\" primeiro." });
-    }
-    const r = (inv.suitabilityRespostas as { adequado?: boolean; motivo?: string } | null) ?? null;
-    if (!r) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Responda o questionário de perfil primeiro." });
-    if (!r.adequado) throw new TRPCError({ code: "PRECONDITION_FAILED", message: r.motivo ?? "Produto não adequado ao seu perfil." });
     if (!(await getCadastro(inv.id))) {
       throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Complete seu cadastro primeiro. Ele é a base do contrato." });
     }

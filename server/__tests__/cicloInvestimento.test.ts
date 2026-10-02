@@ -113,11 +113,11 @@ test("ciclo completo: cadastro → contrato → aporte → resgate pago", async 
     diasAtraso: 0,
   });
 
-  // sem pré-requisitos, o admin não consegue criar contrato
+  // sem cadastro, o admin não consegue criar contrato
   const invId = (await ca.admin.investidores.listar()).find((l) => l.email === "maria-ciclo@exemplo.com")!.id;
   await assert.rejects(
     ca.admin.contratos.criar({ investidorId: invId, ofertaId: oferta.id, principalCentavos: 100_000_00, prazoMeses: 12 }),
-    /trilha/,
+    /cadastro/,
   );
 
   // investidor: trilha + perfil + cadastro

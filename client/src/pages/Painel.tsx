@@ -12,16 +12,12 @@ type ContratoPainel = Saidas["investidor"]["painel"]["contratos"][number];
 
 const data = (iso: string | null | undefined) => (iso ? new Date(iso.length === 10 ? iso + "T12:00:00" : iso).toLocaleDateString("pt-BR") : "a definir");
 
-/** Próximo passo do onboarding: trilha → perfil → cadastro → conversa. */
+/** Próximo passo: cadastro → reserva. A trilha fica como leitura opcional. */
 function ProximoPasso({ temContrato }: { temContrato: boolean }) {
   const perfil = trpc.investidor.perfil.useQuery();
-  const trilha = trpc.trilha.estado.useQuery();
-  if (!perfil.data || !trilha.data || temContrato) return null;
+  if (!perfil.data || temContrato) return null;
 
-  const feitos = trilha.data.modulos.filter((m) => m.concluido).length;
   const passos = [
-    { feito: trilha.data.completa, titulo: "Trilha Antes de investir", det: `${feitos} de ${trilha.data.modulos.length} módulos`, href: "/trilha" },
-    { feito: perfil.data.suitability !== "nao_avaliado", titulo: "Questionário de perfil", det: "5 perguntas", href: "/perfil" },
     { feito: Boolean(perfil.data.cadastroCompletoEm), titulo: "Cadastro do investidor", det: "dados para o contrato", href: "/cadastro" },
     { feito: Boolean(perfil.data.interesseAporteEm), titulo: "Reserva numa oferta", det: perfil.data.interesseAporteEm ? "reserva enviada" : "escolha a oferta, o valor e o prazo", href: "/ofertas" },
   ];

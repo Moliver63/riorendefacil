@@ -50,7 +50,7 @@ function CaixaReserva({ f, minhaReserva }: { f: Ficha; minhaReserva: Reserva }) 
         <p className="bloco__nota">Oferta de exemplo. As reservas abrem quando o emissor estiver habilitado.</p>
       ) : !user ? (
         <>
-          <p className="bloco__nota">Entre para reservar. Antes, você passa pela trilha, pelo perfil e pelo cadastro.</p>
+          <p className="bloco__nota">Entre para reservar. Antes, você preenche o cadastro do investidor.</p>
           <Link href={`/entrar?voltar=/ofertas/${f.id}`} className="btn btn--primario btn--largo">Entrar para reservar</Link>
         </>
       ) : !investidor ? (
