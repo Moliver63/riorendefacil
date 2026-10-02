@@ -7,6 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { db } from "./db";
 import { ccbs, contratos, lancamentosConta, ofertas, operacoesGraos, type Oferta } from "./schema";
 import { diasDesde, resgatesDoContrato } from "./contratoService";
+import { saquePrincipalAberto } from "./movimentacoesService";
 import { rendimentoAcumulado } from "../shared/finance";
 import { alocacaoDoContrato, coberturaProjetada, posicaoDaOferta, valorComSinal, valorElegivel, type TipoLancamento } from "../shared/lastroGraos";
 
@@ -77,8 +78,12 @@ export async function posicao(ofertaId: number, hoje = new Date()) {
     principalAtivo += c.principalCentavos;
     // saldo do investidor hoje (juros compostos, resgates fora) + resgates pedidos e ainda não pagos
     const rs = await resgatesDoContrato(c);
-    const saldo = rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), diasDesde(c.inicio, hoje), rs).saldoCentavos;
     const pendentes = rs.filter((r) => r.status !== "pago").reduce((t, r) => t + r.valorCentavos, 0);
+    const saquePrincipal = await saquePrincipalAberto(c.id);
+    // com saque do principal pedido, o devido é o valor congelado no pedido
+    const saldo = saquePrincipal
+      ? saquePrincipal.brutoCentavos
+      : rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), diasDesde(c.inicio, hoje), rs).saldoCentavos;
     obrigacoes += saldo + pendentes;
   }
   const principalComprometido = cs.reduce((s, c) => s + c.principalCentavos, 0);

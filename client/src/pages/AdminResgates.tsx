@@ -9,7 +9,8 @@ const ROTULO: Record<string, string> = { solicitado: "Solicitado", aprovado: "Ap
 const CLASSE: Record<string, string> = { solicitado: "status--alerta", aprovado: "status--alerta", pago: "status--adimplente", recusado: "status--atraso" };
 const data = (iso: string | Date | null) => (iso ? new Date(typeof iso === "string" && iso.length === 10 ? iso + "T12:00:00" : iso).toLocaleDateString("pt-BR") : "–");
 
-export default function AdminResgates() {
+/** Fila de saques de rendimento (reaproveitada na página de movimentações). */
+export function FilaResgates() {
   const utils = trpc.useUtils();
   const [filtro, setFiltro] = useState<Filtro>("solicitado");
   const { data: lista, isLoading } = trpc.admin.resgates.listar.useQuery(filtro ? { status: filtro } : {});
@@ -21,10 +22,8 @@ export default function AdminResgates() {
   const hoje = new Date().toISOString().slice(0, 10);
 
   return (
-    <AreaLogada
-      titulo="Resgates"
-      subtitulo="Pedidos de resgate de rendimento. A transferência é feita pela conta vinculada do emissor; aqui você registra cada etapa."
-      acoes={
+    <>
+      <div className="fila__filtro">
         <select value={filtro} onChange={(e) => setFiltro(e.target.value as Filtro)} aria-label="Filtrar por status">
           <option value="solicitado">Aguardando aprovação</option>
           <option value="aprovado">Aprovados, a pagar</option>
@@ -32,11 +31,9 @@ export default function AdminResgates() {
           <option value="recusado">Recusados</option>
           <option value="">Todos</option>
         </select>
-      }
-    >
-      <Seo titulo="Resgates" indexar={false} />
+      </div>
       {erro && <p className="aviso aviso--erro">{erro.message}</p>}
-      <section className="bloco">
+      <div>
         {isLoading ? <p className="carregando">Carregando…</p> : !lista?.length ? <Vazio titulo="Nenhum pedido neste filtro" /> : (
           <div className="tabela-wrap">
             <table className="tabela">
@@ -69,7 +66,16 @@ export default function AdminResgates() {
             </table>
           </div>
         )}
-      </section>
+      </div>
+    </>
+  );
+}
+
+export default function AdminResgates() {
+  return (
+    <AreaLogada titulo="Saques de rendimento" subtitulo="A transferência é feita pela conta vinculada do emissor; aqui você registra cada etapa.">
+      <Seo titulo="Saques de rendimento" indexar={false} />
+      <section className="bloco"><FilaResgates /></section>
     </AreaLogada>
   );
 }

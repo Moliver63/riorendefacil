@@ -11,6 +11,7 @@ import { auditar } from "../auditoria";
 import { chaveDocumento, urlEnvio } from "../storage";
 import { investimentosRoutes } from "./adminInvestimentosRouter";
 import { lastroRoutes } from "./adminLastroRouter";
+import { movimentacoesRoutes } from "./adminMovimentacoesRouter";
 
 const faixaSchema = z.object({
   minimoCentavos: z.number().int().positive(),
@@ -23,6 +24,8 @@ export const adminRouter = router({
   ...investimentosRoutes,
   // operações de grãos e conta vinculada
   ...lastroRoutes,
+  // depósitos informados e saques do principal
+  ...movimentacoesRoutes,
 
   resumo: equipeProcedure.query(async () => {
     const seteDias = new Date(Date.now() - 7 * 86_400_000);

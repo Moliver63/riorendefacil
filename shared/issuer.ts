@@ -30,6 +30,15 @@ export type EmissorParceiro = {
   prazoResgateDias: number;
   /** prazo mínimo do principal, em dias */
   carenciaPrincipalDias: number;
+  /** conta vinculada que recebe os depósitos (nunca a da plataforma) */
+  contaDeposito: {
+    favorecido: string | null;
+    documento: string | null;
+    banco: string | null;
+    agencia: string | null;
+    conta: string | null;
+    pix: string | null;
+  };
 };
 
 /**
@@ -68,6 +77,14 @@ export function carregarEmissor(env: Record<string, string | undefined> = {}): E
     faixas: FAIXAS_EXEMPLO,
     prazoResgateDias: Number(env.PRAZO_RESGATE_DIAS ?? 7),
     carenciaPrincipalDias: Number(env.CARENCIA_PRINCIPAL_DIAS ?? 60),
+    contaDeposito: {
+      favorecido: v("CONTA_DEPOSITO_FAVORECIDO"),
+      documento: v("CONTA_DEPOSITO_DOCUMENTO"),
+      banco: v("CONTA_DEPOSITO_BANCO"),
+      agencia: v("CONTA_DEPOSITO_AGENCIA"),
+      conta: v("CONTA_DEPOSITO_CONTA"),
+      pix: v("CONTA_DEPOSITO_PIX"),
+    },
   };
 }
 

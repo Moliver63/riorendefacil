@@ -29,6 +29,13 @@
       "when": 1790970950742,
       "tag": "0003_carteira_ccbs",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790974396163,
+      "tag": "0004_depositos_e_saques",
+      "breakpoints": true
     }
   ]
 }

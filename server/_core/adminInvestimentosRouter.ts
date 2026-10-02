@@ -27,7 +27,7 @@ import { exigirCoberturaParaNovoPrincipal, lancar } from "../lastroService";
 import { prazoValido } from "../../shared/lastroGraos";
 import { emailAporteConfirmado, emailContratoGerado, emailResgatePago, emailResgateRecusado, enviarEmail } from "./email";
 
-async function emailDoInvestidor(investidorId: number) {
+export async function emailDoInvestidor(investidorId: number) {
   const [r] = await db
     .select({ email: usuarios.email, nome: usuarios.nome })
     .from(investidores)
@@ -38,6 +38,43 @@ async function emailDoInvestidor(investidorId: number) {
 }
 
 const idSchema = z.object({ id: z.number().int() });
+
+/**
+ * Ativa o contrato depois que o aporte caiu na conta vinculada: define início e
+ * vencimento, lança o aporte no extrato da conta e avisa o investidor.
+ * Usado pela confirmação direta e pela confirmação de um depósito informado.
+ */
+export async function ativarContrato(p: { contratoId: number; inicio: string; comprovanteChave?: string | null; atorId: number; ip?: string | null }) {
+  const c = await getContrato(p.contratoId);
+  exigirStatus(c, "aguardando_aporte");
+  const hoje = new Date().toISOString().slice(0, 10);
+  if (p.inicio > hoje) throw new TRPCError({ code: "BAD_REQUEST", message: "A data de início não pode ser no futuro." });
+  const vencimento = somarMeses(p.inicio, c.prazoMeses);
+  await db
+    .update(contratos)
+    .set({ status: "ativo", inicio: p.inicio, vencimento, ativadoEm: new Date(), comprovanteAporteChave: p.comprovanteChave ?? null })
+    .where(eq(contratos.id, c.id));
+  await lancar({
+    ofertaId: c.ofertaId,
+    tipo: "aporte",
+    valorCentavos: c.principalCentavos,
+    descricao: `Aporte do contrato #${c.id}`,
+    data: p.inicio,
+    contratoId: c.id,
+    comprovanteChave: p.comprovanteChave ?? undefined,
+    criadoPor: p.atorId,
+  });
+  await auditar({ atorId: p.atorId, acao: "aporte_confirmado", entidade: "contrato", entidadeId: c.id, dados: { inicio: p.inicio, vencimento }, ip: p.ip ?? undefined });
+  const dest = await emailDoInvestidor(c.investidorId);
+  if (dest) {
+    void enviarEmail({
+      para: dest.email,
+      assunto: "Seu investimento está ativo",
+      html: emailAporteConfirmado({ nome: dest.nome, valor: formatarBRL(c.principalCentavos), inicio: p.inicio, vencimento }),
+    });
+  }
+  return { ok: true as const, vencimento };
+}
 
 export const investimentosRoutes = {
   // ─── Investidores ──────────────────────────────────────────────────────────
@@ -246,37 +283,7 @@ export const investimentosRoutes = {
           comprovanteChave: z.string().startsWith("docs/").max(500).optional(),
         }),
       )
-      .mutation(async ({ ctx, input }) => {
-        const c = await getContrato(input.id);
-        exigirStatus(c, "aguardando_aporte");
-        const hoje = new Date().toISOString().slice(0, 10);
-        if (input.inicio > hoje) throw new TRPCError({ code: "BAD_REQUEST", message: "A data de início não pode ser no futuro." });
-        const vencimento = somarMeses(input.inicio, c.prazoMeses);
-        await db
-          .update(contratos)
-          .set({ status: "ativo", inicio: input.inicio, vencimento, ativadoEm: new Date(), comprovanteAporteChave: input.comprovanteChave ?? null })
-          .where(eq(contratos.id, c.id));
-        await lancar({
-          ofertaId: c.ofertaId,
-          tipo: "aporte",
-          valorCentavos: c.principalCentavos,
-          descricao: `Aporte do contrato #${c.id}`,
-          data: input.inicio,
-          contratoId: c.id,
-          comprovanteChave: input.comprovanteChave,
-          criadoPor: ctx.usuario.id,
-        });
-        await auditar({ atorId: ctx.usuario.id, acao: "aporte_confirmado", entidade: "contrato", entidadeId: c.id, dados: { inicio: input.inicio, vencimento }, ip: ctx.ip });
-        const dest = await emailDoInvestidor(c.investidorId);
-        if (dest) {
-          void enviarEmail({
-            para: dest.email,
-            assunto: "Seu investimento está ativo",
-            html: emailAporteConfirmado({ nome: dest.nome, valor: formatarBRL(c.principalCentavos), inicio: input.inicio, vencimento }),
-          });
-        }
-        return { ok: true as const, vencimento };
-      }),
+      .mutation(({ ctx, input }) => ativarContrato({ contratoId: input.id, inicio: input.inicio, comprovanteChave: input.comprovanteChave, atorId: ctx.usuario.id, ip: ctx.ip })),
 
     cancelar: adminProcedure
       .input(z.object({ id: z.number().int(), motivo: z.string().trim().min(3).max(500) }))

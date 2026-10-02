@@ -87,6 +87,13 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - Única exigência para reservar, manifestar interesse e gerar contrato: cadastro completo. Próximos passos do painel: cadastro → reserva.
 - O código de suitability continua no servidor, sem uso na interface, caso o distribuidor exija depois.
 
+## Sessão 09 · 02/10/2026 · depósito, saque e carteira completa
+
+- Carteira mostra todos os investimentos (ativos, aguardando, encerrados, cancelados) numa tabela; a linha escolhida abre o detalhe. Resumo no topo: patrimônio hoje, aportado, rendimento disponível, juros dos próximos 30 dias, aguardando aporte. Histórico de movimentações (depósitos, saques de rendimento e de principal).
+- Depositar: dados da conta vinculada (variáveis CONTA_DEPOSITO_*), valor do contrato, aviso de depósito com data e comprovante opcional (R2). A equipe confirma em /admin/movimentacoes e o contrato é ativado com início na data do depósito.
+- Sacar: rendimento (D+7, como antes) ou principal. Principal no vencimento paga o saldo em D+7; antes do vencimento aplica a regra de resgate antecipado (D+60) com valores congelados no pedido (shared/resgatePrincipal.ts). Ao marcar pago, o contrato fica "liquidado" e a saída entra na conta vinculada.
+- Tabelas novas: depositos, resgates_principal (migração 0004). 61 testes.
+
 ## Pendências
 
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.
@@ -97,7 +104,8 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - Minuta oficial do emissor para substituir o termo de adesão resumido.
 - Enquadramento CVM do modelo de grãos (contrato de investimento coletivo; caminhos possíveis: CRA por securitizadora com distribuidor, ou crowdfunding pela Resolução 88).
 - Taxas para aportes abaixo de R$ 1 milhão (a tabela de referência começa em R$ 1 mi).
-- Fluxo de resgate antecipado do principal no sistema (hoje só as regras aparecem na ficha, no termo e na trilha).
+- Preencher CONTA_DEPOSITO_* no Render com a conta vinculada real.
+- CDI do resgate antecipado (12 a 24 meses) usa a referência de shared/mercado.ts; trocar por série oficial do período.
 - Integração com o motor de viabilidade do LogPro para avaliar cada operação antes da compra.
 - Imagem `client/public/og.png` para compartilhamento.
 - Atualizar `shared/mercado.ts` com fonte oficial antes de publicar.

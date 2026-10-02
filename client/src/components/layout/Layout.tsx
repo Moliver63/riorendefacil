@@ -20,7 +20,7 @@ const MENU_ADMIN: Item[] = [
   { href: "/admin/comunicacao", rotulo: "Comunicação" },
   { href: "/admin/investidores", rotulo: "Investidores", papeis: ["admin"] },
   { href: "/admin/operacoes", rotulo: "Operações", papeis: ["admin"] },
-  { href: "/admin/resgates", rotulo: "Resgates", papeis: ["admin"] },
+  { href: "/admin/movimentacoes", rotulo: "Movimentações", papeis: ["admin"] },
   { href: "/admin/ofertas", rotulo: "Ofertas e garantias", papeis: ["admin"] },
   { href: "/admin/usuarios", rotulo: "Usuários", papeis: ["admin"] },
   { href: "/admin/auditoria", rotulo: "Auditoria", papeis: ["admin"] },

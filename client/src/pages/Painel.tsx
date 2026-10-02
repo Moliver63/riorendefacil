@@ -7,6 +7,7 @@ import { Seo } from "@/components/SEO";
 import { formatarBRL, formatarPct } from "~shared/finance";
 import { BarraAlocacao, type ChaveFatia } from "@/components/oferta/Ficha";
 import { EvolucaoPatrimonio } from "@/components/painel/EvolucaoPatrimonio";
+import { ModalDeposito, ModalSaque, PainelSaque, TabelaMovimentacoes } from "@/components/painel/Movimentacoes";
 
 type ContratoPainel = Saidas["investidor"]["painel"]["contratos"][number];
 
@@ -44,43 +45,6 @@ function ProximoPasso({ temContrato }: { temContrato: boolean }) {
         ))}
       </ol>
     </section>
-  );
-}
-
-function FormResgate({ c, habilitado, previsto, onFeito }: { c: ContratoPainel; habilitado: boolean; previsto: string; onFeito: () => void }) {
-  const [valor, setValor] = useState("");
-  const [chave] = useState(() => crypto.randomUUID());
-  const centavos = Math.round(Number(valor.replace(/\./g, "").replace(",", ".")) * 100) || 0;
-  const valido = centavos > 0 && centavos <= c.disponivelCentavos;
-  const previa = trpc.investidor.previaResgate.useQuery({ contratoId: c.id, valorCentavos: centavos }, { enabled: valido });
-  const pedir = trpc.investidor.solicitarResgate.useMutation({ onSuccess: onFeito });
-
-  if (!habilitado) return <p className="bloco__nota">Resgates abrem quando o emissor parceiro estiver habilitado na plataforma.</p>;
-  if (pedir.isSuccess) {
-    return <p className="aviso aviso--ok">Pedido enviado. Previsão de pagamento: {data(pedir.data.previstoPara)}, valor líquido {formatarBRL(pedir.data.liquidoCentavos)}.</p>;
-  }
-  return (
-    <form className="resgate" onSubmit={(e) => { e.preventDefault(); if (valido) pedir.mutate({ contratoId: c.id, valorCentavos: centavos, idempotencyKey: chave }); }}>
-      <label className="campo-form">
-        Valor bruto a resgatar
-        <div className="resgate__linha">
-          <span>R$</span>
-          <input value={valor} inputMode="decimal" placeholder="0,00" onChange={(e) => setValor(e.target.value)} aria-describedby="resgate-max" />
-          <button type="button" className="btn btn--ghost btn--peq" onClick={() => setValor((c.disponivelCentavos / 100).toFixed(2).replace(".", ","))}>Tudo</button>
-        </div>
-      </label>
-      <span id="resgate-max" className="bloco__nota">Disponível: {formatarBRL(c.disponivelCentavos)}</span>
-      {centavos > c.disponivelCentavos && <p className="aviso aviso--erro">Acima do disponível.</p>}
-      {valido && previa.data && (
-        <dl className="resgate__previa">
-          <div><dt>IR retido ({formatarPct(previa.data.aliquota, 1)})</dt><dd className="num">− {formatarBRL(previa.data.irCentavos)}</dd></div>
-          <div><dt>Você recebe</dt><dd className="num"><strong>{formatarBRL(previa.data.liquidoCentavos)}</strong></dd></div>
-          <div><dt>Previsão</dt><dd>{data(previsto)}</dd></div>
-        </dl>
-      )}
-      {pedir.error && <p className="aviso aviso--erro">{pedir.error.message}</p>}
-      <button className="btn btn--primario" disabled={!valido || pedir.isPending}>{pedir.isPending ? "Enviando…" : "Pedir resgate"}</button>
-    </form>
   );
 }
 
@@ -140,7 +104,6 @@ function Extrato({ contratoId }: { contratoId: number }) {
 }
 
 function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["investidor"]["painel"] }) {
-  const utils = trpc.useUtils();
   const [aba, setAba] = useState<"onde" | "evolucao" | "resgate" | "extrato">("evolucao");
   return (
     <section className="bloco contrato">
@@ -159,7 +122,7 @@ function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["inves
       <div className="abas" role="tablist">
         {(["evolucao", "onde", "resgate", "extrato"] as const).map((a) => (
           <button key={a} role="tab" aria-selected={aba === a} className={aba === a ? "on" : ""} onClick={() => setAba(a)}>
-            {a === "onde" ? "Onde está seu dinheiro" : a === "evolucao" ? "Evolução" : a === "resgate" ? "Pedir resgate" : "Extrato"}
+            {a === "onde" ? "Onde está seu dinheiro" : a === "evolucao" ? "Evolução" : a === "resgate" ? "Sacar" : "Extrato"}
           </button>
         ))}
       </div>
@@ -186,59 +149,156 @@ function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["inves
           pontos={c.evolucao}
         />
       )}
-      {aba === "resgate" && (
-        <FormResgate c={c} habilitado={painel.resgateHabilitado} previsto={painel.pagamentoSePedirHoje}
-          onFeito={() => { void utils.investidor.painel.invalidate(); void utils.investidor.extrato.invalidate(); void utils.investidor.resgates.invalidate(); }} />
-      )}
+      {aba === "resgate" && <PainelSaque c={c} painel={painel} />}
       {aba === "extrato" && <Extrato contratoId={c.id} />}
     </section>
   );
 }
 
-const STATUS_CLASSE: Record<string, string> = { ativo: "status--adimplente", cancelado: "status--atraso", aguardando_assinatura: "status--alerta", aguardando_aporte: "status--alerta" };
+const STATUS_CLASSE: Record<string, string> = {
+  ativo: "status--adimplente",
+  liquidado: "status--neutro",
+  cancelado: "status--atraso",
+  aguardando_assinatura: "status--alerta",
+  aguardando_aporte: "status--alerta",
+};
+
+function ContratoPendente({ c, onDepositar }: { c: ContratoPainel; onDepositar: () => void }) {
+  return (
+    <section className="bloco bloco--pendente">
+      <div className="bloco__cab">
+        <div>
+          <h2>Contrato #{c.id} · {formatarBRL(c.principalCentavos)}</h2>
+          <span className="bloco__det">{formatarPct(c.taxaMensal)} a.m. · {c.prazoMeses} meses · {c.oferta}</span>
+        </div>
+        <span className={`status ${STATUS_CLASSE[c.status] ?? ""}`}>{c.statusRotulo}</span>
+      </div>
+      <p className="bloco__nota">
+        {c.status === "aguardando_assinatura"
+          ? "Leia o contrato com calma. A assinatura é feita com o especialista."
+          : c.depositoInformado
+            ? `Depósito de ${formatarBRL(c.depositoInformado.valorCentavos)} informado em ${data(c.depositoInformado.dataDeposito)}. A equipe está conferindo na conta vinculada.`
+            : "Contrato assinado. Faça o depósito na conta vinculada e avise por aqui; o rendimento conta a partir da data do depósito."}
+      </p>
+      <div className="acoes-inline">
+        <Link href={`/contrato/${c.id}`} className="btn btn--ghost btn--peq">Ler o contrato</Link>
+        {c.status === "aguardando_aporte" && !c.depositoInformado && <button className="btn btn--primario btn--peq" onClick={onDepositar}>Depositar</button>}
+      </div>
+    </section>
+  );
+}
+
+function ContratoEncerrado({ c }: { c: ContratoPainel }) {
+  return (
+    <section className="bloco">
+      <div className="bloco__cab">
+        <div>
+          <h2>{c.oferta}</h2>
+          <span className="bloco__det">Contrato #{c.id} · {formatarBRL(c.principalCentavos)} · {formatarPct(c.taxaMensal)} a.m.{c.inicio ? ` · desde ${data(c.inicio)}` : ""}</span>
+        </div>
+        <span className={`status ${STATUS_CLASSE[c.status] ?? ""}`}>{c.statusRotulo}</span>
+      </div>
+      <p className="bloco__nota">{c.status === "liquidado" ? "Contrato encerrado com o saque do principal. O histórico está nas movimentações." : "Contrato cancelado antes do aporte."}</p>
+      {c.status === "liquidado" && <Extrato contratoId={c.id} />}
+    </section>
+  );
+}
+
+/** Todos os investimentos numa tabela; a linha escolhida abre o detalhe logo abaixo. */
+function MeusInvestimentos({ contratos, selecionado, onSelecionar }: { contratos: ContratoPainel[]; selecionado: number | null; onSelecionar: (id: number) => void }) {
+  return (
+    <section className="bloco">
+      <div className="bloco__cab"><h2>Meus investimentos</h2><span className="bloco__det">{contratos.length} {contratos.length === 1 ? "contrato" : "contratos"}</span></div>
+      <div className="tabela-wrap">
+        <table className="tabela tabela--invest">
+          <thead><tr><th>Investimento</th><th>Situação</th><th className="dir">Aportado</th><th className="dir">Taxa</th><th>Período</th><th className="dir">Saldo hoje</th><th className="dir">Rendimento disponível</th></tr></thead>
+          <tbody>
+            {contratos.map((c) => (
+              <tr key={c.id} className={selecionado === c.id ? "selecionada" : ""} onClick={() => onSelecionar(c.id)} tabIndex={0} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelecionar(c.id)} aria-selected={selecionado === c.id}>
+                <td><strong>{c.oferta}</strong><span className="sub">{c.ofertaCodigo ? `${c.ofertaCodigo} · ` : ""}contrato #{c.id}</span></td>
+                <td>
+                  <span className={`status ${STATUS_CLASSE[c.status] ?? ""}`}>{c.saquePrincipal ? "Saque em andamento" : c.depositoInformado ? "Depósito em conferência" : c.statusRotulo}</span>
+                </td>
+                <td className="dir num">{formatarBRL(c.principalCentavos)}</td>
+                <td className="dir num">{formatarPct(c.taxaMensal)} a.m.</td>
+                <td className="num">{c.inicio ? `${data(c.inicio)} a ${data(c.vencimento)}` : `${c.prazoMeses} meses`}</td>
+                <td className="dir num">{c.status === "ativo" ? <strong>{formatarBRL(c.saldoCentavos)}</strong> : "–"}</td>
+                <td className="dir num">{c.status === "ativo" ? formatarBRL(c.disponivelCentavos) : "–"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
 
 export default function Painel() {
   const painel = trpc.investidor.painel.useQuery();
   const contratos = painel.data?.contratos ?? [];
   const ativos = contratos.filter((c) => c.status === "ativo");
-  const pendentes = contratos.filter((c) => c.status === "aguardando_assinatura" || c.status === "aguardando_aporte");
+  const [modal, setModal] = useState<{ tipo: "deposito" | "saque"; contrato?: number } | null>(null);
+  const [selecionado, setSelecionado] = useState<number | null>(null);
+  const atual = contratos.find((c) => c.id === selecionado) ?? ativos[0] ?? contratos[0];
+
   const totais = useMemo(() => ({
+    patrimonio: ativos.reduce((s, c) => s + c.saldoCentavos, 0),
     aportado: ativos.reduce((s, c) => s + c.principalCentavos, 0),
     disponivel: ativos.reduce((s, c) => s + c.disponivelCentavos, 0),
-  }), [ativos]);
+    juros30: ativos.reduce((s, c) => s + c.jurosProximoMesCentavos, 0),
+    aguardando: contratos.filter((c) => c.status === "aguardando_aporte" || c.status === "aguardando_assinatura").reduce((s, c) => s + c.principalCentavos, 0),
+  }), [contratos, ativos]);
 
   return (
-    <AreaLogada titulo="Minha carteira" subtitulo={ativos.length > 1 ? `${ativos.length} contratos ativos · ${formatarBRL(totais.aportado)} aportado · ${formatarBRL(totais.disponivel)} disponível` : "Contratos, rendimento e onde está o seu dinheiro."}>
+    <AreaLogada
+      titulo="Minha carteira"
+      subtitulo="Todos os seus investimentos, depósitos e saques."
+      acoes={
+        <div className="acoes-inline">
+          <button className="btn btn--ghost" onClick={() => setModal({ tipo: "saque" })}>Sacar</button>
+          <button className="btn btn--primario" onClick={() => setModal({ tipo: "deposito" })}>Depositar</button>
+        </div>
+      }
+    >
       <Seo titulo="Minha carteira" indexar={false} />
       <ProximoPasso temContrato={contratos.some((c) => c.status !== "cancelado")} />
 
-      {pendentes.map((c) => (
-        <section key={c.id} className="bloco bloco--pendente">
-          <div className="bloco__cab">
-            <div>
-              <h2>Contrato #{c.id} · {formatarBRL(c.principalCentavos)}</h2>
-              <span className="bloco__det">{formatarPct(c.taxaMensal)} a.m. · {c.prazoMeses} meses · {c.oferta}</span>
-            </div>
-            <span className={`status ${STATUS_CLASSE[c.status] ?? ""}`}>{c.statusRotulo}</span>
-          </div>
-          <p className="bloco__nota">
-            {c.status === "aguardando_assinatura"
-              ? "Leia o contrato com calma. A assinatura é feita com o especialista."
-              : "Contrato assinado. Assim que o aporte for confirmado na conta vinculada do emissor, o rendimento começa a contar."}
-          </p>
-          <Link href={`/contrato/${c.id}`} className="btn btn--primario btn--peq" style={{ marginTop: 12 }}>Ler o contrato</Link>
-        </section>
-      ))}
-
-      {painel.isLoading ? <p className="carregando">Carregando…</p> : ativos.length === 0 && pendentes.length === 0 ? (
+      {painel.isLoading ? (
+        <p className="carregando">Carregando…</p>
+      ) : contratos.length === 0 ? (
         <section className="bloco">
-          <Vazio titulo="Você ainda não tem contratos">
-            <p>Quando um contrato for gerado para você, ele aparece aqui. Depois do aporte confirmado, você acompanha o rendimento do dia.</p>
+          <Vazio titulo="Você ainda não tem investimentos">
+            <p>Escolha uma oferta e faça a reserva. Quando o contrato for gerado e o depósito confirmado, você acompanha o rendimento do dia aqui.</p>
           </Vazio>
         </section>
-      ) : null}
+      ) : (
+        <>
+          <dl className="resumo-carteira">
+            <div className="resumo-carteira__dest"><dt>Patrimônio investido hoje</dt><dd className="num">{formatarBRL(totais.patrimonio)}</dd><small>{ativos.length} {ativos.length === 1 ? "contrato ativo" : "contratos ativos"}</small></div>
+            <div><dt>Total aportado</dt><dd className="num">{formatarBRL(totais.aportado)}</dd></div>
+            <div><dt>Rendimento disponível</dt><dd className="num">{formatarBRL(totais.disponivel)}</dd><small>saque em D+{painel.data?.prazoResgateDias ?? 7}</small></div>
+            <div><dt>Juros nos próximos 30 dias</dt><dd className="num">{formatarBRL(totais.juros30)}</dd></div>
+            {totais.aguardando > 0 && <div><dt>Aguardando aporte</dt><dd className="num">{formatarBRL(totais.aguardando)}</dd></div>}
+          </dl>
 
-      {painel.data && ativos.map((c) => <ContratoAtivo key={c.id} c={c} painel={painel.data!} />)}
+          <MeusInvestimentos contratos={contratos} selecionado={atual?.id ?? null} onSelecionar={setSelecionado} />
+
+          {painel.data && atual && (
+            atual.status === "ativo" ? (
+              <ContratoAtivo key={atual.id} c={atual} painel={painel.data} />
+            ) : atual.status === "aguardando_assinatura" || atual.status === "aguardando_aporte" ? (
+              <ContratoPendente c={atual} onDepositar={() => setModal({ tipo: "deposito", contrato: atual.id })} />
+            ) : (
+              <ContratoEncerrado c={atual} />
+            )
+          )}
+        </>
+      )}
+
+      <section className="bloco">
+        <div className="bloco__cab"><h2>Movimentações</h2><span className="bloco__det">depósitos e saques</span></div>
+        <TabelaMovimentacoes />
+      </section>
 
       <MinhasReservas />
 
@@ -249,6 +309,9 @@ export default function Painel() {
         </div>
         <SeloEmissor />
       </section>
+
+      {modal?.tipo === "deposito" && <ModalDeposito contratoInicial={modal.contrato} onFechar={() => setModal(null)} />}
+      {modal?.tipo === "saque" && painel.data && <ModalSaque painel={painel.data} contratoInicial={modal.contrato ?? (atual?.status === "ativo" ? atual.id : undefined)} onFechar={() => setModal(null)} />}
     </AreaLogada>
   );
 }

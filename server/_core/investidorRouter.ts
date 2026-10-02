@@ -4,7 +4,8 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { router, comPapel } from "./trpc";
 import { ENV, r2Configurado } from "./env";
 import { db, getOrCreateInvestidor } from "../db";
-import { contratos, documentos, investidores, ofertas, reservas, resgatesRendimento, usuarios } from "../schema";
+import { contratos, depositos, documentos, investidores, ofertas, reservas, resgatesPrincipal, resgatesRendimento, usuarios } from "../schema";
+import { depositoAberto, previaSaquePrincipal, saquePrincipalAberto } from "../movimentacoesService";
 import { QUESTOES_SUITABILITY, calcularPerfil } from "../../shared/suitability";
 import { esquemaCadastro, mascararCpf } from "../../shared/cadastro";
 import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
@@ -13,7 +14,7 @@ import { alocacao } from "../lastroService";
 import { ficha } from "../fichaOferta";
 import { prazoValido } from "../../shared/lastroGraos";
 import { auditar } from "../auditoria";
-import { urlDownload } from "../storage";
+import { chaveDocumento, urlDownload, urlEnvio } from "../storage";
 import { enviarEmail } from "./email";
 import { cadastroRevelado, getCadastro, salvarCadastro } from "../cadastroService";
 import {
@@ -157,6 +158,8 @@ export const investidorRouter = router({
           resgatesNoTempo: noTempo.map((r) => ({ dia: r.dia, valorCentavos: r.valorCentavos })),
           evolucao: c.status === "ativo" ? evolucaoDoContrato(c, noTempo, hoje) : [],
           alocacao: c.status === "ativo" ? await alocacao(c.id) : [],
+          saquePrincipal: await saquePrincipalAberto(c.id),
+          depositoInformado: c.status === "aguardando_aporte" ? await depositoAberto(c.id) : null,
         };
       }),
     );
@@ -217,6 +220,9 @@ export const investidorRouter = router({
       }
       const c = await meuContrato(ctx.usuario.id, input.contratoId);
       if (c.status !== "ativo") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Só contratos ativos aceitam resgate." });
+      if (await saquePrincipalAberto(c.id)) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Há um saque do principal em andamento neste contrato; ele já inclui o rendimento." });
+      }
 
       const [ja] = await db.select().from(resgatesRendimento).where(eq(resgatesRendimento.idempotencyKey, input.idempotencyKey)).limit(1);
       if (ja) {
@@ -246,7 +252,7 @@ export const investidorRouter = router({
         void enviarEmail({
           para,
           assunto: `Pedido de resgate: contrato #${c.id}`,
-          html: `<p>${ctx.usuario.nome ?? ctx.usuario.email} pediu resgate de ${formatarBRL(input.valorCentavos)} do contrato #${c.id}. Previsto para ${new Date(previsto + "T12:00:00").toLocaleDateString("pt-BR")}.</p><p><a href="${ENV.appUrl}/admin/resgates">Abrir resgates</a></p>`,
+          html: `<p>${ctx.usuario.nome ?? ctx.usuario.email} pediu resgate de ${formatarBRL(input.valorCentavos)} do contrato #${c.id}. Previsto para ${new Date(previsto + "T12:00:00").toLocaleDateString("pt-BR")}.</p><p><a href="${ENV.appUrl}/admin/movimentacoes">Abrir resgates</a></p>`,
         });
       }
       return { ok: true as const, id: novo?.id ?? null, previstoPara: previsto, repetido: !novo, ...ir };
@@ -316,6 +322,175 @@ export const investidorRouter = router({
    * Manifestação de interesse em aporte. Exige só o
    * cadastro completo. Não movimenta dinheiro: avisa a equipe.
    */
+  // ─── Depósito e saque ──────────────────────────────────────────────────────
+
+  /** Para onde depositar: a conta vinculada do emissor, e os contratos esperando aporte. */
+  dadosDeposito: investidorProcedure.query(async ({ ctx }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    const e = carregarEmissor(process.env);
+    const conta = e.contaDeposito;
+    const lista = await db
+      .select({ c: contratos, oferta: ofertas.nome, codigo: ofertas.codigo })
+      .from(contratos)
+      .innerJoin(ofertas, eq(contratos.ofertaId, ofertas.id))
+      .where(and(eq(contratos.investidorId, inv.id), eq(contratos.status, "aguardando_aporte")))
+      .orderBy(desc(contratos.criadoEm));
+    return {
+      habilitado: pendenciasParaCaptar(e).length === 0 && Boolean(conta.conta || conta.pix),
+      conta,
+      comprovantes: r2Configurado(),
+      contratos: await Promise.all(
+        lista.map(async ({ c, oferta, codigo }) => ({
+          id: c.id,
+          oferta,
+          codigo,
+          principalCentavos: c.principalCentavos,
+          prazoMeses: c.prazoMeses,
+          taxaMensal: Number(c.taxaMensal),
+          depositoInformado: await depositoAberto(c.id),
+        })),
+      ),
+    };
+  }),
+
+  /** URL de envio do comprovante de depósito (só para contrato próprio). */
+  prepararComprovante: investidorProcedure
+    .input(z.object({ contratoId: z.number().int(), nomeArquivo: z.string().min(1).max(200), contentType: z.string().max(100), tamanho: z.number().int().positive() }))
+    .mutation(async ({ ctx, input }) => {
+      const c = await meuContrato(ctx.usuario.id, input.contratoId);
+      if (!r2Configurado()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Envio de arquivos ainda não configurado. Informe o depósito sem comprovante." });
+      if (!/^(application\/pdf|image\/(png|jpeg))$/.test(input.contentType)) throw new TRPCError({ code: "BAD_REQUEST", message: "Envie PDF, PNG ou JPG." });
+      const chave = chaveDocumento("contrato", c.id, input.nomeArquivo);
+      try {
+        return { chave, url: await urlEnvio(chave, input.contentType, input.tamanho) };
+      } catch (e) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: (e as Error).message });
+      }
+    }),
+
+  /** O investidor avisa que depositou. A equipe confere na conta vinculada e ativa o contrato. */
+  informarDeposito: investidorProcedure
+    .input(
+      z.object({
+        contratoId: z.number().int(),
+        valorCentavos: z.number().int().positive(),
+        dataDeposito: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+        comprovante: z.object({ chave: z.string().startsWith("docs/").max(500), sha256: z.string().regex(/^[a-f0-9]{64}$/), tamanhoBytes: z.number().int().positive() }).optional(),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      const e = carregarEmissor(process.env);
+      if (pendenciasParaCaptar(e).length > 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Depósitos ainda não estão habilitados." });
+      const c = await meuContrato(ctx.usuario.id, input.contratoId);
+      if (c.status !== "aguardando_aporte") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Este contrato não está aguardando aporte." });
+      if (input.dataDeposito > new Date().toISOString().slice(0, 10)) throw new TRPCError({ code: "BAD_REQUEST", message: "A data do depósito não pode ser no futuro." });
+      if (await depositoAberto(c.id)) throw new TRPCError({ code: "CONFLICT", message: "Você já informou um depósito para este contrato. Aguarde a confirmação." });
+      if (input.comprovante?.chave && !input.comprovante.chave.startsWith(`docs/contrato/${c.id}/`)) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: "Comprovante inválido." });
+      }
+      const [d] = await db
+        .insert(depositos)
+        .values({ investidorId: c.investidorId, contratoId: c.id, valorCentavos: input.valorCentavos, dataDeposito: input.dataDeposito, comprovanteChave: input.comprovante?.chave ?? null })
+        .returning();
+      if (input.comprovante) {
+        await db.insert(documentos).values({
+          escopo: "contrato",
+          escopoId: c.id,
+          tipo: "comprovante_deposito",
+          titulo: `Comprovante de depósito do contrato #${c.id}`,
+          storageKey: input.comprovante.chave,
+          sha256: input.comprovante.sha256,
+          tamanhoBytes: input.comprovante.tamanhoBytes,
+        });
+      }
+      await auditar({ atorId: ctx.usuario.id, acao: "deposito_informado", entidade: "contrato", entidadeId: c.id, dados: { valor: input.valorCentavos, data: input.dataDeposito }, ip: ctx.ip });
+      for (const para of ENV.emailsAssessores) {
+        void enviarEmail({
+          para,
+          assunto: `Depósito informado: contrato #${c.id}, ${formatarBRL(input.valorCentavos)}`,
+          html: `<p>${ctx.usuario.nome ?? ctx.usuario.email} informou depósito de ${formatarBRL(input.valorCentavos)} em ${input.dataDeposito} para o contrato #${c.id}.</p><p><a href="${ENV.appUrl}/admin/movimentacoes">Conferir e confirmar</a></p>`,
+        });
+      }
+      if (input.valorCentavos !== c.principalCentavos) {
+        return { ...d!, aviso: `O valor informado é diferente do valor do contrato (${formatarBRL(c.principalCentavos)}). A equipe vai conferir.` };
+      }
+      return { ...d!, aviso: null };
+    }),
+
+  /** Quanto o investidor recebe se pedir o saque do principal hoje. */
+  previaSaquePrincipal: investidorProcedure.input(z.object({ contratoId: z.number().int() })).query(async ({ ctx, input }) => {
+    const c = await meuContrato(ctx.usuario.id, input.contratoId);
+    if (c.status !== "ativo") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Só contratos ativos." });
+    return previaSaquePrincipal(c);
+  }),
+
+  solicitarSaquePrincipal: investidorProcedure
+    .input(z.object({ contratoId: z.number().int(), ciente: z.literal(true) }))
+    .mutation(async ({ ctx, input }) => {
+      const e = carregarEmissor(process.env);
+      if (pendenciasParaCaptar(e).length > 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Saques ainda não estão habilitados." });
+      const c = await meuContrato(ctx.usuario.id, input.contratoId);
+      if (c.status !== "ativo") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Só contratos ativos." });
+      if (await saquePrincipalAberto(c.id)) throw new TRPCError({ code: "CONFLICT", message: "Já existe um saque do principal em andamento para este contrato." });
+      const pendRend = await db
+        .select({ id: resgatesRendimento.id })
+        .from(resgatesRendimento)
+        .where(and(eq(resgatesRendimento.contratoId, c.id), inArray(resgatesRendimento.status, ["solicitado", "aprovado"])))
+        .limit(1);
+      if (pendRend.length) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Espere o pagamento do resgate de rendimento em andamento antes de pedir o saque do principal." });
+      const p = await previaSaquePrincipal(c);
+      const [r] = await db
+        .insert(resgatesPrincipal)
+        .values({
+          contratoId: c.id,
+          tipo: p.tipo,
+          regra: p.regra,
+          diasPermanencia: p.dias,
+          principalCentavos: c.principalCentavos,
+          rendimentoSacadoCentavos: p.rendimentoSacadoCentavos,
+          brutoCentavos: p.brutoCentavos,
+          penalidadeCentavos: p.penalidadeCentavos,
+          irCentavos: p.irCentavos,
+          liquidoCentavos: p.liquidoCentavos,
+          previstoPara: p.previstoPara,
+        })
+        .returning();
+      await auditar({ atorId: ctx.usuario.id, acao: "saque_principal_solicitado", entidade: "contrato", entidadeId: c.id, dados: { tipo: p.tipo, bruto: p.brutoCentavos, penalidade: p.penalidadeCentavos }, ip: ctx.ip });
+      for (const para of ENV.emailsAssessores) {
+        void enviarEmail({
+          para,
+          assunto: `Saque do principal (${p.tipo}): contrato #${c.id}`,
+          html: `<p>${ctx.usuario.nome ?? ctx.usuario.email} pediu o saque do principal do contrato #${c.id}: ${formatarBRL(p.liquidoCentavos)} líquidos, previsto para ${p.previstoPara}. Regra: ${p.regra}.</p><p><a href="${ENV.appUrl}/admin/movimentacoes">Abrir movimentações</a></p>`,
+        });
+      }
+      return r!;
+    }),
+
+  /** Todas as movimentações do investidor: depósitos, saques de rendimento e de principal. */
+  movimentacoes: investidorProcedure.query(async ({ ctx }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    const meus = await db
+      .select({ id: contratos.id, oferta: ofertas.nome })
+      .from(contratos)
+      .innerJoin(ofertas, eq(contratos.ofertaId, ofertas.id))
+      .where(eq(contratos.investidorId, inv.id));
+    const ids = meus.map((m) => m.id);
+    const nome = new Map(meus.map((m) => [m.id, m.oferta]));
+    if (!ids.length) return [];
+    const [deps, rend, princ] = await Promise.all([
+      db.select().from(depositos).where(inArray(depositos.contratoId, ids)),
+      db.select().from(resgatesRendimento).where(inArray(resgatesRendimento.contratoId, ids)),
+      db.select().from(resgatesPrincipal).where(inArray(resgatesPrincipal.contratoId, ids)),
+    ]);
+    const ROT: Record<string, string> = { informado: "Em conferência", confirmado: "Confirmado", solicitado: "Solicitado", aprovado: "Aprovado", pago: "Pago", recusado: "Recusado" };
+    const itens = [
+      ...deps.map((d) => ({ chave: `d${d.id}`, tipo: "deposito" as const, rotulo: "Depósito", contratoId: d.contratoId, oferta: nome.get(d.contratoId) ?? "", data: `${d.dataDeposito}T12:00:00.000Z`, valorCentavos: d.valorCentavos, liquidoCentavos: d.valorCentavos, status: d.status, statusRotulo: ROT[d.status] ?? d.status, previstoPara: null as string | null, detalhe: d.motivoRecusa ?? `avisado em ${d.criadoEm.toLocaleDateString("pt-BR")}` })),
+      ...rend.map((r) => ({ chave: `r${r.id}`, tipo: "saque_rendimento" as const, rotulo: "Saque de rendimento", contratoId: r.contratoId, oferta: nome.get(r.contratoId) ?? "", data: r.solicitadoEm.toISOString(), valorCentavos: -r.valorCentavos, liquidoCentavos: -(r.valorCentavos - Number(r.irRetidoCentavos)), status: r.status, statusRotulo: ROT[r.status] ?? r.status, previstoPara: r.previstoPara, detalhe: r.motivoRecusa ?? `IR ${formatarBRL(Number(r.irRetidoCentavos))}` })),
+      ...princ.map((r) => ({ chave: `p${r.id}`, tipo: "saque_principal" as const, rotulo: r.tipo === "vencimento" ? "Saque no vencimento" : "Saque antecipado do principal", contratoId: r.contratoId, oferta: nome.get(r.contratoId) ?? "", data: r.solicitadoEm.toISOString(), valorCentavos: -r.brutoCentavos, liquidoCentavos: -r.liquidoCentavos, status: r.status, statusRotulo: ROT[r.status] ?? r.status, previstoPara: r.previstoPara, detalhe: r.motivoRecusa ?? (r.penalidadeCentavos > 0 ? `penalidade ${formatarBRL(r.penalidadeCentavos)} · IR ${formatarBRL(r.irCentavos)}` : `IR ${formatarBRL(r.irCentavos)}`) })),
+    ];
+    return itens.sort((a, b) => b.data.localeCompare(a.data));
+  }),
+
   /** Ficha da oferta, inclusive encerrada, se o investidor tiver contrato nela. */
   oferta: investidorProcedure.input(z.object({ id: z.number().int().min(0) })).query(async ({ ctx, input }) => {
     const inv = await meuInvestidor(ctx.usuario.id);

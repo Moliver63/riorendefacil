@@ -151,3 +151,29 @@ export function emailResgateRecusado(p: { nome: string | null; motivo: string })
     <p>O valor continua disponível na sua carteira. Se tiver dúvida, responda este e-mail.</p>
   `);
 }
+
+export function emailDepositoRecusado(p: { nome: string | null; motivo: string }) {
+  return envelope(`
+    <h1 style="font-size:22px;font-weight:normal">Depósito não confirmado</h1>
+    <p>${p.nome ? `${escapar(p.nome.split(" ")[0]!)}, n` : "N"}ão conseguimos confirmar o depósito informado. Motivo: ${escapar(p.motivo)}</p>
+    <p>Confira os dados e informe de novo pela carteira. Se tiver dúvida, responda este e-mail.</p>
+    ${botao(`${ENV.appUrl}/painel`, "Abrir carteira")}
+  `);
+}
+
+export function emailSaquePrincipalPago(p: { nome: string | null; bruto: string; ir: string; liquido: string; regra: string }) {
+  return envelope(`
+    <h1 style="font-size:22px;font-weight:normal">Saque do principal pago</h1>
+    <p>${p.nome ? `${escapar(p.nome.split(" ")[0]!)}, o` : "O"} saque foi transferido para sua conta cadastrada e o contrato foi encerrado.</p>
+    <p>Regra aplicada: ${escapar(p.regra)}<br>Bruto: ${escapar(p.bruto)}<br>IR retido: ${escapar(p.ir)}<br><strong>Líquido: ${escapar(p.liquido)}</strong></p>
+    ${botao(`${ENV.appUrl}/painel`, "Ver carteira")}
+  `);
+}
+
+export function emailSaquePrincipalRecusado(p: { nome: string | null; motivo: string }) {
+  return envelope(`
+    <h1 style="font-size:22px;font-weight:normal">Saque do principal não aprovado</h1>
+    <p>${p.nome ? `${escapar(p.nome.split(" ")[0]!)}, s` : "S"}eu pedido de saque do principal não foi aprovado. Motivo: ${escapar(p.motivo)}</p>
+    <p>O contrato segue ativo e rendendo normalmente. Se tiver dúvida, responda este e-mail.</p>
+  `);
+}

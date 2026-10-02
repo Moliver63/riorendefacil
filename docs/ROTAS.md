@@ -34,7 +34,8 @@ Papéis: `investidor`, `assessor`, `admin`. "Equipe" = assessor ou admin.
 | `/admin/usuarios` | `pages/AdminUsuarios.tsx` | admin |
 | `/admin/auditoria` | `pages/AdminAuditoria.tsx` | admin |
 | `/admin/investidores` | `pages/AdminInvestidores.tsx` | admin |
-| `/admin/resgates` | `pages/AdminResgates.tsx` | admin |
+| `/admin/movimentacoes` | `pages/AdminMovimentacoes.tsx` | admin |
+| `/admin/resgates` | `pages/AdminResgates.tsx` | admin (só saques de rendimento) |
 | `/admin/operacoes` | `pages/AdminOperacoes.tsx` | admin |
 | qualquer outra | `pages/NotFound.tsx` | público |
 
@@ -103,6 +104,10 @@ Leitura é `query` (GET), escrita é `mutation` (POST). Formato superjson.
 | `investidor.extrato` | query | investidor | aporte e resgates do contrato |
 | `investidor.previaResgate` | query | investidor | IR e líquido de um valor antes de pedir |
 | `investidor.resgates` | query | investidor | pedidos de resgate |
+| `investidor.dadosDeposito` | query | investidor | conta vinculada e contratos aguardando aporte |
+| `investidor.prepararComprovante` / `informarDeposito` | mutation | investidor | envio do comprovante e aviso de depósito |
+| `investidor.previaSaquePrincipal` / `solicitarSaquePrincipal` | query / mutation | investidor | saque do principal (vencimento ou antecipado) |
+| `investidor.movimentacoes` | query | investidor | depósitos e saques |
 | `investidor.oferta` | query | investidor | ficha da oferta (inclusive encerrada, se tiver contrato) com a reserva própria |
 | `investidor.pendencias` | query | investidor | etapas que faltam antes de reservar |
 | `investidor.reservar` | mutation | investidor | reserva valor e prazo com a taxa da faixa; uma ativa por oferta |
@@ -147,6 +152,8 @@ Leitura é `query` (GET), escrita é `mutation` (POST). Formato superjson.
 | `admin.operacoes.marcarAtraso` / `cancelar` | mutation | admin | atraso do comprador; cancelamento só em análise |
 | `admin.conta.extrato` | query | admin | lançamentos da conta vinculada |
 | `admin.conta.lancar` | mutation | admin | custos, margem da Rio (limitada pela ordem de pagamento), principal devolvido, ajuste |
+| `admin.depositos.listar` / `confirmar` / `recusar` | query / mutation | admin | depósitos informados; confirmar ativa o contrato |
+| `admin.saquesPrincipal.listar` / `aprovar` / `marcarPago` / `recusar` | query / mutation | admin | saques do principal; pago encerra o contrato |
 | `admin.resgates.listar` | query | admin | pedidos com conta de destino |
 | `admin.resgates.aprovar` | mutation | admin | solicitado → aprovado |
 | `admin.resgates.marcarPago` | mutation | admin | aprovado → pago, avisa o investidor |

@@ -316,6 +316,64 @@ export const lancamentosConta = pgTable(
   (t) => ({ ofertaIdx: index("lancamentos_conta_oferta_idx").on(t.ofertaId, t.data) }),
 );
 
+/**
+ * Depósito informado pelo investidor para um contrato aguardando aporte.
+ * O dinheiro vai direto para a conta vinculada; aqui fica só o aviso, o
+ * comprovante e a confirmação da equipe (que ativa o contrato).
+ */
+export const depositos = pgTable(
+  "depositos",
+  {
+    id: serial("id").primaryKey(),
+    investidorId: integer("investidor_id")
+      .notNull()
+      .references(() => investidores.id),
+    contratoId: integer("contrato_id")
+      .notNull()
+      .references(() => contratos.id),
+    valorCentavos: bigint("valor_centavos", { mode: "number" }).notNull(),
+    dataDeposito: date("data_deposito").notNull(),
+    comprovanteChave: text("comprovante_chave"),
+    status: varchar("status", { length: 16 }).notNull().default("informado"),
+    motivoRecusa: text("motivo_recusa"),
+    confirmadoPor: integer("confirmado_por").references(() => usuarios.id),
+    confirmadoEm: timestamp("confirmado_em", { withTimezone: true }),
+    criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ invIdx: index("depositos_investidor_idx").on(t.investidorId, t.status) }),
+);
+
+/**
+ * Saque do principal: no vencimento (recompra dos títulos pela Rio) ou
+ * antecipado (D+60, com penalidade sobre a performance). Valores calculados e
+ * congelados no pedido.
+ */
+export const resgatesPrincipal = pgTable(
+  "resgates_principal",
+  {
+    id: serial("id").primaryKey(),
+    contratoId: integer("contrato_id")
+      .notNull()
+      .references(() => contratos.id),
+    tipo: varchar("tipo", { length: 16 }).notNull(),
+    regra: varchar("regra", { length: 255 }).notNull(),
+    diasPermanencia: integer("dias_permanencia").notNull(),
+    principalCentavos: bigint("principal_centavos", { mode: "number" }).notNull(),
+    rendimentoSacadoCentavos: bigint("rendimento_sacado_centavos", { mode: "number" }).notNull(),
+    brutoCentavos: bigint("bruto_centavos", { mode: "number" }).notNull(),
+    penalidadeCentavos: bigint("penalidade_centavos", { mode: "number" }).notNull(),
+    irCentavos: bigint("ir_centavos", { mode: "number" }).notNull(),
+    liquidoCentavos: bigint("liquido_centavos", { mode: "number" }).notNull(),
+    previstoPara: date("previsto_para").notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("solicitado"),
+    motivoRecusa: text("motivo_recusa"),
+    comprovanteChave: text("comprovante_chave"),
+    solicitadoEm: timestamp("solicitado_em", { withTimezone: true }).notNull().defaultNow(),
+    pagoEm: timestamp("pago_em", { withTimezone: true }),
+  },
+  (t) => ({ contratoIdx: index("resgates_principal_contrato_idx").on(t.contratoId) }),
+);
+
 /** Reserva do investidor numa oferta, antes do contrato (como nas ofertas das corretoras). */
 export const reservas = pgTable(
   "reservas",
@@ -450,3 +508,5 @@ export type Contrato = typeof contratos.$inferSelect;
 export type OperacaoGraos = typeof operacoesGraos.$inferSelect;
 export type LancamentoConta = typeof lancamentosConta.$inferSelect;
 export type Reserva = typeof reservas.$inferSelect;
+export type Deposito = typeof depositos.$inferSelect;
+export type ResgatePrincipal = typeof resgatesPrincipal.$inferSelect;

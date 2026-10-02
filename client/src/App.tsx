@@ -34,6 +34,7 @@ const AdminAuditoria = lazy(() => import("@/pages/AdminAuditoria"));
 const AdminInvestidores = lazy(() => import("@/pages/AdminInvestidores"));
 const AdminResgates = lazy(() => import("@/pages/AdminResgates"));
 const AdminOperacoes = lazy(() => import("@/pages/AdminOperacoes"));
+const AdminMovimentacoes = lazy(() => import("@/pages/AdminMovimentacoes"));
 
 const INVESTIDOR = ["investidor"] as const;
 const EQUIPE = ["assessor", "admin"] as const;
@@ -79,6 +80,7 @@ function Rotas() {
       <Route path="/admin/auditoria">{() => <ProtectedRoute roles={[...ADMIN]}><AdminAuditoria /></ProtectedRoute>}</Route>
       <Route path="/admin/investidores">{() => <ProtectedRoute roles={[...ADMIN]}><AdminInvestidores /></ProtectedRoute>}</Route>
       <Route path="/admin/operacoes">{() => <ProtectedRoute roles={[...ADMIN]}><AdminOperacoes /></ProtectedRoute>}</Route>
+      <Route path="/admin/movimentacoes">{() => <ProtectedRoute roles={[...ADMIN]}><AdminMovimentacoes /></ProtectedRoute>}</Route>
       <Route path="/admin/resgates">{() => <ProtectedRoute roles={[...ADMIN]}><AdminResgates /></ProtectedRoute>}</Route>
 
       <Route component={NotFound} />
