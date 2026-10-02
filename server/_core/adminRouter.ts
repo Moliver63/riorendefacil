@@ -10,6 +10,7 @@ import { avaliarTexto } from "../../shared/complianceGuard";
 import { auditar } from "../auditoria";
 import { chaveDocumento, urlEnvio } from "../storage";
 import { investimentosRoutes } from "./adminInvestimentosRouter";
+import { lastroRoutes } from "./adminLastroRouter";
 
 const faixaSchema = z.object({
   minimoCentavos: z.number().int().positive(),
@@ -20,6 +21,8 @@ const faixaSchema = z.object({
 export const adminRouter = router({
   // investidores, contratos e resgates (back-office do investimento)
   ...investimentosRoutes,
+  // operações de grãos e conta vinculada
+  ...lastroRoutes,
 
   resumo: equipeProcedure.query(async () => {
     const seteDias = new Date(Date.now() - 7 * 86_400_000);
@@ -80,10 +83,17 @@ export const adminRouter = router({
           faixas: z.array(faixaSchema).min(1).max(12),
           carenciaPrincipalDias: z.number().int().min(1).max(3650),
           prazoResgateDias: z.number().int().min(0).max(90),
+          codigo: z.string().trim().max(32).optional(),
+          tese: z.string().max(4000).optional(),
+          coberturaMinima: z.number().min(1).max(5).optional(),
+          captacaoAlvoCentavos: z.number().int().positive().nullable().optional(),
+          prazoMedioCicloDias: z.number().int().min(1).max(720).optional(),
+          reservasAte: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
-        const { id, ...dados } = input;
+        const { id, coberturaMinima, ...resto } = input;
+        const dados = { ...resto, ...(coberturaMinima !== undefined ? { coberturaMinima: coberturaMinima.toFixed(4) } : {}) };
         const [o] = id
           ? await db.update(ofertas).set(dados).where(eq(ofertas.id, id)).returning()
           : await db.insert(ofertas).values(dados).returning();
@@ -92,7 +102,7 @@ export const adminRouter = router({
         return o;
       }),
     ativar: adminProcedure.input(z.object({ id: z.number().int(), ativa: z.boolean() })).mutation(async ({ ctx, input }) => {
-      if (input.ativa) await db.update(ofertas).set({ ativa: false }).where(eq(ofertas.ativa, true));
+      // várias ofertas podem ficar abertas ao mesmo tempo, como numa prateleira de renda fixa
       await db.update(ofertas).set({ ativa: input.ativa }).where(eq(ofertas.id, input.id));
       await auditar({ atorId: ctx.usuario.id, acao: input.ativa ? "oferta_ativada" : "oferta_desativada", entidade: "oferta", entidadeId: input.id, ip: ctx.ip });
       return { ok: true as const };
@@ -118,6 +128,7 @@ export const adminRouter = router({
           situacao: z.enum(SITUACOES_CCB),
           diasAtraso: z.number().int().min(0).max(3650),
           registroRef: z.string().max(255).optional(),
+          valorElegivelCentavos: z.number().int().positive().nullable().optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -137,7 +148,7 @@ export const adminRouter = router({
     prepararEnvio: adminProcedure
       .input(
         z.object({
-          escopo: z.enum(["publico", "investidor", "contrato", "oferta", "ccb"]),
+          escopo: z.enum(["publico", "investidor", "contrato", "oferta", "ccb", "operacao"]),
           escopoId: z.number().int().nullable(),
           nomeArquivo: z.string().min(1).max(200),
           contentType: z.string().max(100),
@@ -156,7 +167,7 @@ export const adminRouter = router({
     registrar: adminProcedure
       .input(
         z.object({
-          escopo: z.enum(["publico", "investidor", "contrato", "oferta", "ccb"]),
+          escopo: z.enum(["publico", "investidor", "contrato", "oferta", "ccb", "operacao"]),
           escopoId: z.number().int().nullable(),
           tipo: z.string().min(2).max(64),
           titulo: z.string().trim().min(3).max(255),

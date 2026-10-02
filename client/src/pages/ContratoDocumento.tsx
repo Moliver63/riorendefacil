@@ -61,10 +61,10 @@ export default function ContratoDocumento({ id }: { id: number }) {
 
         <p className="doc__aviso">
           Resumo das condições para leitura. O instrumento oficial é a minuta do emissor, apresentada para assinatura junto com
-          as CCBs e os documentos da operação. Em caso de divergência, prevalece o instrumento assinado.
+          os documentos da oferta e das garantias. Em caso de divergência, prevalece o instrumento assinado.
         </p>
 
-        <h1>Termo de adesão ao investimento em CCB</h1>
+        <h1>Termo de adesão à oferta {c.ofertaCodigo ?? c.oferta}</h1>
 
         <section>
           <h2>1. Partes</h2>
@@ -81,7 +81,7 @@ export default function ContratoDocumento({ id }: { id: number }) {
           </p>
           <p>
             <strong>Emissor:</strong> {emissor}
-            {c.emissor.cnpj ? `, CNPJ ${c.emissor.cnpj}` : ""}, responsável pela emissão das CCBs e pela conta vinculada
+            {c.emissor.cnpj ? `, CNPJ ${c.emissor.cnpj}` : ""}, responsável pela estruturação da oferta, pelas garantias e pela conta vinculada
             {c.emissor.custodiante ? ` administrada por ${c.emissor.custodiante}` : ""}.
           </p>
           <p>
@@ -106,7 +106,25 @@ export default function ContratoDocumento({ id }: { id: number }) {
         </section>
 
         <section>
-          <h2>3. Riscos</h2>
+          <h2>3. Destinação, lastro e garantias</h2>
+          <p>
+            Os recursos são depositados na conta vinculada da oferta e destinados exclusivamente à compra à vista de soja,
+            milho e sorgo de produtores rurais, para revenda a cerealistas, cooperativas, indústrias e tradings previamente
+            analisados. Cada operação é registrada com nota fiscal, transporte, comprador e recebimento.
+          </p>
+          <p>
+            Os pagamentos dos compradores entram na conta vinculada e seguem esta ordem: impostos e custos autorizados,
+            principal dos investidores, remuneração dos investidores e, por último, a margem operacional da Rio.
+          </p>
+          <p>
+            A oferta conta com garantias em CCBs com imóvel. Se a cobertura (garantias elegíveis divididas pelo principal
+            captado) ficar abaixo de {Math.round(c.coberturaMinima * 100)}%, novas captações e novas operações ficam
+            suspensas até a recomposição.
+          </p>
+        </section>
+
+        <section>
+          <h2>4. Riscos</h2>
           <p>{AVISO_RISCO}</p>
           <p>
             O investidor declara ter concluído a trilha educativa da plataforma, ter respondido o questionário de perfil e
@@ -115,7 +133,7 @@ export default function ContratoDocumento({ id }: { id: number }) {
         </section>
 
         <section>
-          <h2>4. Assinaturas</h2>
+          <h2>5. Assinaturas</h2>
           <div className="doc__assinaturas">
             <div><span className="doc__linha" />{q?.nomeCompleto ?? "Investidor"}<small>Investidor</small></div>
             <div><span className="doc__linha" />{emissor}<small>Emissor</small></div>

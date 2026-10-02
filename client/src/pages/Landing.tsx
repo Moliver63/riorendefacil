@@ -5,82 +5,88 @@ import { Simulador } from "@/components/landing/Simulador";
 import { FormContato, type SimulacaoLead } from "@/components/landing/FormContato";
 import { trpc } from "@/lib/trpc";
 import { Seo } from "@/components/SEO";
-import { formatarPct } from "~shared/finance";
+import { formatarBRL, formatarPct } from "~shared/finance";
+import { formatarCobertura } from "~shared/lastroGraos";
 import { ARTIGOS } from "~shared/conteudo";
 
 const ETAPAS = [
-  { n: "01", t: "O emissor origina o crédito", d: "Empresas do agro e do mercado imobiliário pedem crédito ao emissor licenciado. Só entram operações com garantia real e análise de capacidade de pagamento." },
-  { n: "02", t: "Cada crédito vira uma CCB", d: "A Cédula de Crédito Bancário é título executivo: se o devedor não paga, a cobrança judicial é mais rápida. A garantia fica amarrada a ela." },
-  { n: "03", t: "O dinheiro fica em conta vinculada", d: "Seu aporte e os pagamentos dos devedores passam por conta de garantia operada por um administrador independente, separada do caixa do emissor e do nosso." },
-  { n: "04", t: "Você acompanha tudo aqui", d: "Cada CCB do pool aparece no painel com setor, garantia, LTV e situação de pagamento, inclusive as que atrasam." },
+  { n: "01", t: "Seu aporte vai para a conta vinculada", d: "O dinheiro entra numa conta da oferta, com regras de uso, separada do caixa da Rio e do nosso. Só sai para comprar grão de operações aprovadas." },
+  { n: "02", t: "A Rio compra o grão à vista", d: "Soja, milho e sorgo direto do produtor rural, com nota fiscal, origem e quantidade registradas. Pagar à vista garante preço melhor na compra." },
+  { n: "03", t: "Vende para quem já foi analisado", d: "Cerealistas, cooperativas, indústrias e tradings aprovados compram o grão. A venda vira um recebível com valor e data." },
+  { n: "04", t: "O comprador paga na conta vinculada", d: "Do recebimento saem, nesta ordem, custos autorizados, o seu principal e a sua remuneração. A margem da Rio vem por último." },
 ];
 
 const RISCOS = [
-  { t: "Risco de crédito", d: "Devedores podem atrasar ou não pagar. As garantias reduzem a perda, mas executar uma garantia leva tempo e pode não cobrir 100% do valor." },
-  { t: "Sem FGC", d: "Diferente de CDB e poupança, CCB estruturada não tem cobertura do Fundo Garantidor de Créditos." },
-  { t: "Liquidez do principal", d: "O valor aportado fica travado até o vencimento do contrato. Só o rendimento pode ser resgatado antes, e o pagamento depende do fluxo do pool." },
-  { t: "Concentração", d: "O pool é diversificado entre devedores, mas concentrado em dois setores. Uma crise no agro ou no imobiliário afeta vários créditos ao mesmo tempo." },
+  { t: "Preço e quebra do grão", d: "O preço pode cair entre a compra e a venda, e pode haver perda de peso ou qualidade no transporte. Isso reduz a margem da operação." },
+  { t: "Comprador que não paga", d: "Um comprador pode atrasar ou não pagar. O recebível e as garantias reduzem a perda, mas cobrar e executar leva tempo." },
+  { t: "Sem FGC", d: "Diferente de CDB e poupança, este investimento não tem cobertura do Fundo Garantidor de Créditos." },
+  { t: "Liquidez do principal", d: "O valor aportado fica até o vencimento do contrato. Só o rendimento pode ser resgatado antes, com pagamento em até 7 dias." },
 ];
 
 const FAQ = [
-  { p: "O RioRendeFácil é um banco?", r: "Não. Somos a tecnologia: site, simulador, cadastro, painel e documentos. Quem emite as CCBs, recebe os aportes em conta vinculada e responde pela operação é o emissor parceiro, identificado no rodapé." },
-  { p: "Por que vocês mostram o rendimento líquido?", r: "Porque é o que chega na sua conta. Comparar valor bruto com poupança, que é isenta, faz qualquer produto parecer melhor do que é." },
-  { p: "Preciso fazer a trilha antes de investir?", r: "Sim. Antes de manifestar interesse em aporte, você passa por quatro módulos curtos sobre CCB, riscos, lastro e imposto, e responde um questionário de perfil. Se o produto não combinar com você, avisamos." },
-  { p: "O que acontece se um devedor atrasar?", r: "O atraso aparece no seu painel com o número de dias. O emissor aciona a cobrança e, se necessário, executa a garantia. Atrasos isolados são absorvidos pelo pool, mas reduzem o resultado." },
+  { p: "O RioRendeFácil é um banco?", r: "Não. Somos a tecnologia: ofertas, cadastro, painel e documentos. A Rio faz a compra e a venda dos grãos, e o emissor parceiro estrutura a oferta. O dinheiro fica em conta vinculada, nunca com a plataforma." },
+  { p: "Como sei que a operação existe?", r: "Cada operação aparece na ficha da oferta com grão, toneladas, origem, comprador, destino, valores e situação. Notas fiscais e comprovantes ficam com o emissor e a auditoria." },
+  { p: "O que protege o meu dinheiro?", r: "Três camadas: o grão comprado, o recebível da venda e as garantias em imóveis vinculadas às CCBs. A ficha mostra o índice de cobertura. Se ele cair abaixo do mínimo, novas captações e compras param até a garantia ser recomposta." },
+  { p: "Quando a Rio ganha dinheiro?", r: "Por último. Da venda do grão saem primeiro os custos, depois o principal e a remuneração dos investidores. Só o que sobra vira margem da Rio, e o sistema bloqueia retirada antes disso." },
+  { p: "Preciso fazer a trilha antes de investir?", r: "Sim. São quatro módulos curtos e um questionário de perfil. Se o produto não combinar com você, avisamos antes de qualquer reserva." },
 ];
 
 export default function Home() {
   const [sim, setSim] = useState<SimulacaoLead>();
   const status = trpc.plataforma.status.useQuery();
-  const lastro = trpc.plataforma.lastro.useQuery();
+  const ofertas = trpc.plataforma.ofertas.useQuery();
+  const destaque = ofertas.data?.[0];
 
   return (
     <PaginaPublica>
       <Seo
-        titulo="RioRendeFácil · Renda fixa com lastro que você enxerga"
-        descricao="Crédito privado com lastro real: cada CCB do pool visível, rentabilidade mostrada já líquida de IR e riscos explicados antes de qualquer aporte."
+        titulo="RioRendeFácil · Renda fixa lastreada em grãos que você enxerga"
+        descricao="Renda fixa lastreada em operações reais de soja, milho e sorgo. Cada operação visível, conta vinculada, garantias em imóveis e riscos explicados antes de qualquer aporte."
       />
       <section className="hero">
         <div className="hero__in">
           <div className="hero__texto">
-            <p className="sobretitulo">Crédito privado com lastro real</p>
+            <p className="sobretitulo">Renda fixa lastreada em grãos</p>
             <h1>
-              Renda fixa com lastro <em>que você enxerga.</em>
+              Seu dinheiro em operações de grão <em>que você enxerga.</em>
             </h1>
             <p className="hero__lead">
-              Cada crédito do pool aparece no seu painel: quem deve, qual a garantia e se está pagando em dia. O
-              rendimento já vem mostrado líquido de IR, e você entende os riscos antes de qualquer número.
+              O capital financia a compra à vista de soja, milho e sorgo e a revenda a compradores analisados. Você vê cada
+              operação, a conta vinculada e as garantias em imóveis, e o investidor recebe antes da margem da Rio.
             </p>
             <div className="hero__acoes">
-              <a href="#simulador" className="btn btn--primario">Simular agora</a>
+              <Link href="/ofertas" className="btn btn--primario">Ver ofertas</Link>
               <a href="#riscos" className="btn btn--ghost">Ler os riscos primeiro</a>
             </div>
             <SeloEmissor />
           </div>
 
-          <aside className="cartao-pool" aria-label="Composição do pool">
+          <aside className="cartao-pool" aria-label="Operações da oferta">
             <div className="cartao-pool__topo">
-              <span>Composição do pool</span>
-              {lastro.data?.exemplo && <span className="etiqueta">exemplo</span>}
+              <span>{destaque ? `${destaque.codigo} · operações` : "Operações"}</span>
+              {destaque?.exemplo && <span className="etiqueta">exemplo</span>}
             </div>
             <ul>
-              {(lastro.data?.itens ?? []).map((c) => (
-                <li key={c.codigo}>
-                  <span className={`ponto ponto--${c.setor}`} aria-hidden="true" />
+              {(destaque?.operacoes ?? []).slice(0, 4).map((o) => (
+                <li key={o.codigo}>
+                  <span className={`aloc__ponto aloc--${o.grao}`} aria-hidden="true" />
                   <div>
-                    <strong>{c.devedor}</strong>
-                    <span>{c.garantia}</span>
+                    <strong>{o.graoRotulo} · {o.toneladas.toLocaleString("pt-BR")} t</strong>
+                    <span>{o.origem.replace(/^Produtor rural, /, "")}{o.destino ? ` → ${o.destino}` : ""}</span>
                   </div>
                   <div className="cartao-pool__dir">
-                    <span className="num">LTV {formatarPct(c.ltv, 0)}</span>
-                    <span className={`status status--${c.situacao === "adimplente" ? "adimplente" : "atraso"}`}>
-                      {c.situacao === "adimplente" ? "Em dia" : `${c.diasAtraso} dias de atraso`}
-                    </span>
+                    <span className="num">{o.margemPct !== null ? `margem ${formatarPct(o.margemPct, 1)}` : formatarBRL(o.valorCompraCentavos)}</span>
+                    <span className={`status ${o.status === "recebida" ? "status--adimplente" : o.status === "atrasada" ? "status--atraso" : o.status === "vendida" ? "status--alerta" : "status--neutro"}`}>{o.statusRotulo}</span>
                   </div>
                 </li>
               ))}
             </ul>
-            <p className="cartao-pool__nota">Mostramos os atrasos também. Transparência que esconde o problema não serve para nada.</p>
+            {destaque && (
+              <p className="cartao-pool__nota">
+                Cobertura de garantias {formatarCobertura(destaque.posicao.cobertura)} · mínimo {formatarCobertura(destaque.posicao.coberturaMinima)}.{" "}
+                <Link href={`/ofertas/${destaque.id}`}>Ver a ficha completa</Link>
+              </p>
+            )}
           </aside>
         </div>
       </section>
@@ -89,8 +95,8 @@ export default function Home() {
         <div className="secao__in">
           <header className="secao__cab">
             <p className="sobretitulo">Como funciona</p>
-            <h2>Quatro peças, cada uma com um responsável</h2>
-            <p>A segurança não vem do site. Vem de quem origina, de como o crédito é formalizado e de onde o dinheiro fica. A gente mostra cada uma dessas peças.</p>
+            <h2>Do produtor ao comprador, com o dinheiro sempre na conta vinculada</h2>
+            <p>A segurança não vem do site. Vem do grão comprado, do recebível da venda, das garantias e da ordem em que o dinheiro é pago. A gente mostra cada uma dessas peças.</p>
           </header>
           <ol className="etapas">
             {ETAPAS.map((e) => (
@@ -131,9 +137,9 @@ export default function Home() {
             </Link>
           </header>
           <ol className="lista-trilha">
-            <li><span className="num">1</span>O que é uma CCB</li>
+            <li><span className="num">1</span>Como funciona o lastro em grãos</li>
             <li><span className="num">2</span>Os riscos, sem rodeio</li>
-            <li><span className="num">3</span>Como ler o lastro no painel</li>
+            <li><span className="num">3</span>Como ler operações e garantias</li>
             <li><span className="num">4</span>Rendimento líquido e imposto</li>
           </ol>
         </div>
@@ -161,7 +167,7 @@ export default function Home() {
         <div className="secao__in">
           <header className="secao__cab">
             <p className="sobretitulo">Conteúdo</p>
-            <h2>Crédito privado sem jargão</h2>
+            <h2>Renda fixa e agro sem jargão</h2>
           </header>
           <div className="cards-artigos">
             {ARTIGOS.slice(0, 3).map((a) => (

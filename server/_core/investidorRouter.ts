@@ -4,11 +4,13 @@ import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { router, comPapel } from "./trpc";
 import { ENV, r2Configurado } from "./env";
 import { db, getOrCreateInvestidor } from "../db";
-import { contratos, documentos, investidores, ofertas, resgatesRendimento, usuarios } from "../schema";
+import { contratos, documentos, investidores, ofertas, reservas, resgatesRendimento, usuarios } from "../schema";
 import { QUESTOES_SUITABILITY, calcularPerfil } from "../../shared/suitability";
 import { esquemaCadastro, mascararCpf } from "../../shared/cadastro";
 import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
-import { dataPagamentoResgate, formatarBRL } from "../../shared/finance";
+import { dataPagamentoResgate, formatarBRL, formatarPct, tetoDaFaixa, type Faixa } from "../../shared/finance";
+import { alocacao } from "../lastroService";
+import { ficha } from "../fichaOferta";
 import { auditar } from "../auditoria";
 import { urlDownload } from "../storage";
 import { enviarEmail } from "./email";
@@ -24,6 +26,19 @@ import {
 } from "../contratoService";
 
 const investidorProcedure = comPapel("investidor");
+
+type Pendencia = { etapa: "trilha" | "perfil" | "cadastro"; mensagem: string; href: string };
+
+/** Etapas obrigatórias antes de reservar ou ter contrato. */
+async function pendenciasDoInvestidor(inv: Awaited<ReturnType<typeof getOrCreateInvestidor>>): Promise<Pendencia[]> {
+  const p: Pendencia[] = [];
+  if (!inv.trilhaConcluidaEm) p.push({ etapa: "trilha", mensagem: "Conclua a trilha \"Antes de investir\" primeiro.", href: "/trilha" });
+  const r = inv.suitabilityRespostas as { adequado?: boolean; motivo?: string } | null;
+  if (!r) p.push({ etapa: "perfil", mensagem: "Responda o questionário de perfil primeiro.", href: "/perfil" });
+  else if (!r.adequado) p.push({ etapa: "perfil", mensagem: r.motivo ?? "Produto não adequado ao seu perfil.", href: "/perfil" });
+  if (!(await getCadastro(inv.id))) p.push({ etapa: "cadastro", mensagem: "Complete seu cadastro primeiro. Ele é a base do contrato.", href: "/cadastro" });
+  return p;
+}
 const meuInvestidor = getOrCreateInvestidor;
 
 /** Contrato do próprio investidor, ou 404 (nunca revela se o id existe para outra pessoa). */
@@ -108,7 +123,7 @@ export const investidorRouter = router({
   painel: investidorProcedure.query(async ({ ctx }) => {
     const inv = await meuInvestidor(ctx.usuario.id);
     const lista = await db
-      .select({ c: contratos, oferta: ofertas.nome })
+      .select({ c: contratos, oferta: ofertas.nome, ofertaCodigo: ofertas.codigo })
       .from(contratos)
       .innerJoin(ofertas, eq(contratos.ofertaId, ofertas.id))
       .where(eq(contratos.investidorId, inv.id))
@@ -117,12 +132,14 @@ export const investidorRouter = router({
     const e = carregarEmissor(process.env);
     const hoje = new Date();
     const itens = await Promise.all(
-      lista.map(async ({ c, oferta }) => {
+      lista.map(async ({ c, oferta, ofertaCodigo }) => {
         const resgatado = await totalResgatado(c.id);
         const s = saldoDoContrato(c, resgatado, hoje);
         return {
           id: c.id,
           oferta,
+          ofertaId: c.ofertaId,
+          ofertaCodigo,
           status: c.status,
           statusRotulo: STATUS_CONTRATO_ROTULO[c.status] ?? c.status,
           principalCentavos: c.principalCentavos,
@@ -135,6 +152,7 @@ export const investidorRouter = router({
           disponivelCentavos: s.disponivelCentavos,
           irSeResgatarTudo: c.status === "ativo" ? irDoResgate(c, s.disponivelCentavos, hoje) : null,
           evolucao: c.status === "ativo" ? evolucaoDoContrato(c) : [],
+          alocacao: c.status === "ativo" ? await alocacao(c.id) : [],
         };
       }),
     );
@@ -157,6 +175,8 @@ export const investidorRouter = router({
       statusRotulo: STATUS_CONTRATO_ROTULO[c.status] ?? c.status,
       qualificacao: c.qualificacao,
       oferta: o?.nome ?? "",
+      ofertaCodigo: o?.codigo ?? null,
+      coberturaMinima: o ? Number(o.coberturaMinima) : 1.3,
       principalCentavos: c.principalCentavos,
       taxaMensal: Number(c.taxaMensal),
       prazoMeses: c.prazoMeses,
@@ -291,6 +311,92 @@ export const investidorRouter = router({
    * Manifestação de interesse em aporte. Exige trilha, perfil adequado e
    * cadastro completo. Não movimenta dinheiro: avisa a equipe.
    */
+  /** Ficha da oferta, inclusive encerrada, se o investidor tiver contrato nela. */
+  oferta: investidorProcedure.input(z.object({ id: z.number().int().min(0) })).query(async ({ ctx, input }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    const [tem] = await db
+      .select({ id: contratos.id })
+      .from(contratos)
+      .where(and(eq(contratos.investidorId, inv.id), eq(contratos.ofertaId, input.id)))
+      .limit(1);
+    const f = await ficha(input.id, Boolean(tem));
+    if (!f) throw new TRPCError({ code: "NOT_FOUND", message: "Oferta não encontrada ou encerrada." });
+    const [minha] = await db
+      .select()
+      .from(reservas)
+      .where(and(eq(reservas.investidorId, inv.id), eq(reservas.ofertaId, input.id), eq(reservas.status, "ativa")))
+      .limit(1);
+    return { ...f, minhaReserva: minha ? { ...minha, taxaMensal: Number(minha.taxaMensal) } : null };
+  }),
+
+  /** O que falta para o investidor poder reservar. Lista vazia = pode. */
+  pendencias: investidorProcedure.query(async ({ ctx }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    return pendenciasDoInvestidor(inv);
+  }),
+
+  /**
+   * Reserva numa oferta (como nas ofertas das corretoras): valor e prazo ficam
+   * registrados com a taxa da faixa; a equipe gera o contrato a partir dela.
+   */
+  reservar: investidorProcedure
+    .input(z.object({ ofertaId: z.number().int().positive(), valorCentavos: z.number().int().min(100_00), prazoMeses: z.number().int().min(1).max(60) }))
+    .mutation(async ({ ctx, input }) => {
+      const inv = await meuInvestidor(ctx.usuario.id);
+      const pend = await pendenciasDoInvestidor(inv);
+      if (pend.length) throw new TRPCError({ code: "PRECONDITION_FAILED", message: pend[0]!.mensagem });
+      const f = await ficha(input.ofertaId);
+      if (!f || f.exemplo) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Esta oferta ainda não está aberta para reservas." });
+      if (!f.captacaoLiberada) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Reservas suspensas nesta oferta no momento." });
+      const taxa = tetoDaFaixa(f.faixas as Faixa[], input.valorCentavos, input.prazoMeses);
+      if (taxa === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Valor ou prazo fora das faixas desta oferta." });
+      if (input.prazoMeses * 30 < f.carenciaPrincipalDias) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `O prazo precisa cobrir a carência do principal (${f.carenciaPrincipalDias} dias).` });
+      }
+      const [existente] = await db
+        .select({ id: reservas.id })
+        .from(reservas)
+        .where(and(eq(reservas.investidorId, inv.id), eq(reservas.ofertaId, input.ofertaId), eq(reservas.status, "ativa")))
+        .limit(1);
+      const valores = { valorCentavos: input.valorCentavos, prazoMeses: input.prazoMeses, taxaMensal: taxa.toFixed(6), atualizadoEm: new Date() };
+      const [r] = existente
+        ? await db.update(reservas).set(valores).where(eq(reservas.id, existente.id)).returning()
+        : await db.insert(reservas).values({ ...valores, investidorId: inv.id, ofertaId: input.ofertaId }).returning();
+      await db.update(investidores).set({ interesseAporteEm: new Date() }).where(eq(investidores.id, inv.id));
+      await auditar({ atorId: ctx.usuario.id, acao: existente ? "reserva_alterada" : "reserva_criada", entidade: "reserva", entidadeId: r!.id, dados: input, ip: ctx.ip });
+      for (const para of ENV.emailsAssessores) {
+        void enviarEmail({
+          para,
+          assunto: `Reserva ${f.codigo}: ${formatarBRL(input.valorCentavos)}`,
+          html: `<p>${ctx.usuario.nome ?? ""} (${ctx.usuario.email}) reservou ${formatarBRL(input.valorCentavos)} por ${input.prazoMeses} meses em ${f.nome}, a ${formatarPct(taxa)} a.m.</p><p><a href="${ENV.appUrl}/admin/investidores">Abrir investidores</a></p>`,
+        });
+      }
+      return { ...r!, taxaMensal: taxa };
+    }),
+
+  reservas: investidorProcedure.query(async ({ ctx }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    const linhas = await db
+      .select({ r: reservas, oferta: ofertas.nome, codigo: ofertas.codigo })
+      .from(reservas)
+      .innerJoin(ofertas, eq(reservas.ofertaId, ofertas.id))
+      .where(and(eq(reservas.investidorId, inv.id), eq(reservas.status, "ativa")))
+      .orderBy(desc(reservas.criadoEm));
+    return linhas.map(({ r, oferta, codigo }) => ({ ...r, taxaMensal: Number(r.taxaMensal), oferta, codigo }));
+  }),
+
+  cancelarReserva: investidorProcedure.input(z.object({ id: z.number().int() })).mutation(async ({ ctx, input }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    const [r] = await db
+      .update(reservas)
+      .set({ status: "cancelada", atualizadoEm: new Date() })
+      .where(and(eq(reservas.id, input.id), eq(reservas.investidorId, inv.id), eq(reservas.status, "ativa")))
+      .returning({ id: reservas.id });
+    if (!r) throw new TRPCError({ code: "NOT_FOUND", message: "Reserva não encontrada." });
+    await auditar({ atorId: ctx.usuario.id, acao: "reserva_cancelada", entidade: "reserva", entidadeId: r.id, ip: ctx.ip });
+    return { ok: true as const };
+  }),
+
   manifestarInteresse: investidorProcedure.mutation(async ({ ctx }) => {
     const inv = await meuInvestidor(ctx.usuario.id);
     if (!inv.trilhaConcluidaEm) {

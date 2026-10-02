@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { asc, desc, eq } from "drizzle-orm";
 import { router, publicProcedure } from "./trpc";
 import { db, getOfertaAtiva } from "../db";
@@ -6,6 +7,7 @@ import { ccbs, ofertas } from "../schema";
 import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
 import { REFERENCIAS_MERCADO } from "../../shared/mercado";
 import { LASTRO_EXEMPLO, type ItemLastro } from "../../shared/exemplo";
+import { ficha, vitrine } from "../fichaOferta";
 import { compararLiquido, proximaFaixa, simular, tetoDaFaixa, type Faixa } from "../../shared/finance";
 
 const emissor = () => carregarEmissor(process.env);
@@ -40,6 +42,16 @@ export const plataformaRouter = router({
       carenciaPrincipalDias: e.carenciaPrincipalDias,
       referencias: REFERENCIAS_MERCADO,
     };
+  }),
+
+  /** Prateleira de ofertas abertas (ou a de exemplo). */
+  ofertas: publicProcedure.query(() => vitrine()),
+
+  /** Ficha completa de uma oferta: condições, operações, garantias e conta vinculada. */
+  oferta: publicProcedure.input(z.object({ id: z.number().int().min(0) })).query(async ({ input }) => {
+    const f = await ficha(input.id);
+    if (!f) throw new TRPCError({ code: "NOT_FOUND", message: "Oferta não encontrada ou encerrada." });
+    return f;
   }),
 
   /** Composição do pool para a vitrine pública. */

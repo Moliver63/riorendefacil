@@ -208,6 +208,14 @@ export const ofertas = pgTable("ofertas", {
   carenciaPrincipalDias: integer("carencia_principal_dias").notNull().default(60),
   prazoResgateDias: integer("prazo_resgate_dias").notNull().default(7),
   ativa: boolean("ativa").notNull().default(false),
+  /** Ficha do produto, no formato das prateleiras de renda fixa. */
+  codigo: varchar("codigo", { length: 32 }),
+  tese: text("tese"),
+  /** Garantias elegíveis ÷ principal comprometido. Abaixo disso, captação e compras param. */
+  coberturaMinima: numeric("cobertura_minima", { precision: 6, scale: 4 }).notNull().default("1.3"),
+  captacaoAlvoCentavos: bigint("captacao_alvo_centavos", { mode: "number" }),
+  prazoMedioCicloDias: integer("prazo_medio_ciclo_dias").notNull().default(60),
+  reservasAte: date("reservas_ate"),
   criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
 });
 
@@ -228,9 +236,102 @@ export const ccbs = pgTable(
     situacao: varchar("situacao", { length: 32 }).notNull().default("adimplente"),
     diasAtraso: integer("dias_atraso").notNull().default(0),
     registroRef: varchar("registro_ref", { length: 255 }),
+    /** Valor da garantia que conta para a cobertura (avaliação com desconto). Sem valor, usa a avaliação cheia. */
+    valorElegivelCentavos: bigint("valor_elegivel_centavos", { mode: "number" }),
     atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ codigoIdx: uniqueIndex("ccbs_codigo_idx").on(t.ofertaId, t.codigo) }),
+);
+
+/**
+ * Operações de grãos que lastreiam a oferta: compra do produtor, transporte,
+ * venda a comprador aprovado e recebimento na conta vinculada.
+ */
+export const operacoesGraos = pgTable(
+  "operacoes_graos",
+  {
+    id: serial("id").primaryKey(),
+    ofertaId: integer("oferta_id")
+      .notNull()
+      .references(() => ofertas.id),
+    codigo: varchar("codigo", { length: 32 }).notNull(),
+    grao: varchar("grao", { length: 16 }).notNull(),
+    status: varchar("status", { length: 24 }).notNull().default("em_analise"),
+    /** Descrição pública do produtor (sem nome de pessoa física): "Produtor rural, Sorriso/MT" */
+    produtorDescricao: varchar("produtor_descricao", { length: 255 }).notNull(),
+    origemMunicipio: varchar("origem_municipio", { length: 120 }).notNull(),
+    origemUf: varchar("origem_uf", { length: 2 }).notNull(),
+    toneladas: numeric("toneladas", { precision: 12, scale: 3 }).notNull(),
+    valorCompraCentavos: bigint("valor_compra_centavos", { mode: "number" }).notNull(),
+    custosCentavos: bigint("custos_centavos", { mode: "number" }).notNull().default(0),
+    nfCompra: varchar("nf_compra", { length: 64 }),
+    dataCompra: date("data_compra"),
+    transportadora: varchar("transportadora", { length: 160 }),
+    destinoMunicipio: varchar("destino_municipio", { length: 120 }),
+    destinoUf: varchar("destino_uf", { length: 2 }),
+    compradorTipo: varchar("comprador_tipo", { length: 24 }),
+    compradorDescricao: varchar("comprador_descricao", { length: 255 }),
+    valorVendaCentavos: bigint("valor_venda_centavos", { mode: "number" }),
+    nfVenda: varchar("nf_venda", { length: 64 }),
+    dataVenda: date("data_venda"),
+    vencimentoRecebimento: date("vencimento_recebimento"),
+    valorRecebidoCentavos: bigint("valor_recebido_centavos", { mode: "number" }).notNull().default(0),
+    dataRecebimento: date("data_recebimento"),
+    observacoes: text("observacoes"),
+    criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+    atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    codigoIdx: uniqueIndex("operacoes_graos_codigo_idx").on(t.ofertaId, t.codigo),
+    statusIdx: index("operacoes_graos_status_idx").on(t.ofertaId, t.status),
+  }),
+);
+
+/**
+ * Extrato da conta vinculada de cada oferta. Valor com sinal: positivo entra,
+ * negativo sai. Nunca se apaga um lançamento; correção é um ajuste novo.
+ */
+export const lancamentosConta = pgTable(
+  "lancamentos_conta",
+  {
+    id: serial("id").primaryKey(),
+    ofertaId: integer("oferta_id")
+      .notNull()
+      .references(() => ofertas.id),
+    data: date("data").notNull(),
+    tipo: varchar("tipo", { length: 24 }).notNull(),
+    valorCentavos: bigint("valor_centavos", { mode: "number" }).notNull(),
+    descricao: varchar("descricao", { length: 255 }).notNull(),
+    operacaoId: integer("operacao_id").references(() => operacoesGraos.id),
+    contratoId: integer("contrato_id"),
+    resgateId: integer("resgate_id"),
+    comprovanteChave: text("comprovante_chave"),
+    criadoPor: integer("criado_por").references(() => usuarios.id),
+    criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ ofertaIdx: index("lancamentos_conta_oferta_idx").on(t.ofertaId, t.data) }),
+);
+
+/** Reserva do investidor numa oferta, antes do contrato (como nas ofertas das corretoras). */
+export const reservas = pgTable(
+  "reservas",
+  {
+    id: serial("id").primaryKey(),
+    investidorId: integer("investidor_id")
+      .notNull()
+      .references(() => investidores.id),
+    ofertaId: integer("oferta_id")
+      .notNull()
+      .references(() => ofertas.id),
+    valorCentavos: bigint("valor_centavos", { mode: "number" }).notNull(),
+    prazoMeses: integer("prazo_meses").notNull(),
+    taxaMensal: numeric("taxa_mensal", { precision: 8, scale: 6 }).notNull(),
+    status: varchar("status", { length: 16 }).notNull().default("ativa"),
+    contratoId: integer("contrato_id"),
+    criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+    atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ invIdx: index("reservas_investidor_idx").on(t.investidorId, t.status) }),
 );
 
 export const contratos = pgTable(
@@ -341,3 +442,7 @@ export type Oferta = typeof ofertas.$inferSelect;
 export type Documento = typeof documentos.$inferSelect;
 export type Cadastro = typeof cadastros.$inferSelect;
 export type Contrato = typeof contratos.$inferSelect;
+
+export type OperacaoGraos = typeof operacoesGraos.$inferSelect;
+export type LancamentoConta = typeof lancamentosConta.$inferSelect;
+export type Reserva = typeof reservas.$inferSelect;

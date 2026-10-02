@@ -11,14 +11,14 @@ export default function Documentos() {
   });
 
   return (
-    <AreaLogada titulo="Documentos" subtitulo="Contratos, CCBs, laudos e pareceres. Cada arquivo tem impressão digital (SHA-256) registrada.">
+    <AreaLogada titulo="Documentos" subtitulo="Contratos, laudos das garantias e pareceres. Cada arquivo tem impressão digital (SHA-256) registrada.">
       <Seo titulo="Documentos" indexar={false} />
       <section className="bloco">
         {isLoading ? (
           <p className="carregando">Carregando…</p>
         ) : !data?.documentos.length ? (
           <Vazio titulo="Nenhum documento ainda">
-            <p>Contrato, CCBs do pool, laudos das garantias e o parecer de auditoria aparecem aqui assim que forem publicados.</p>
+            <p>Contrato, CCBs de garantia, laudos dos imóveis e o parecer de auditoria aparecem aqui assim que forem publicados.</p>
           </Vazio>
         ) : (
           <ul className="docs">

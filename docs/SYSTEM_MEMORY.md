@@ -63,6 +63,16 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - Geração de contrato travada até `EMISSOR_AUTORIZADO` e dados do emissor estarem no ambiente. Assinatura ainda é marcada à mão pelo admin.
 - Migração `drizzle/0001_cadastro_e_ciclo.sql`, só aditiva. 45 testes, incluindo o ciclo inteiro. Fluxo conferido no navegador em desktop e celular.
 
+## Sessão 06 · 02/10/2026 · lastro em operações de grãos
+
+- Tese nova definida por Michel: o capital financia compra à vista de soja, milho e sorgo pela Rio e revenda a compradores aprovados, com conta vinculada, ordem de pagamento e CCBs com imóvel como camada de garantia (cobertura mínima 130%). Formato de prateleira de ofertas inspirado em XP e BTG.
+- Modelo: `operacoes_graos`, `lancamentos_conta` (valor com sinal, nunca apagado), `reservas`; ofertas ganharam código, tese, cobertura mínima, captação alvo, ciclo médio e data limite de reservas; CCB ganhou valor elegível. Migração `0002_graos_e_garantias.sql`, só aditiva. Várias ofertas podem ficar ativas.
+- Regras puras em `shared/lastroGraos.ts`: posição da oferta, cobertura, trava, margem liberável (só o que sobra depois de principal + rendimento acumulado, com atraso fora dos ativos), alocação proporcional do contrato.
+- Travas: contrato novo que derrubaria a cobertura abaixo do mínimo; compra sem saldo na conta; compra e reserva com cobertura abaixo do mínimo; margem acima do liberável.
+- Lançamentos automáticos: aporte confirmado, compra, custos, recebimento e resgate pago.
+- Telas: prateleira `/ofertas`, ficha `/ofertas/:id` com reserva, aba "Onde está seu dinheiro" no painel, admin de operações e conta vinculada, editor da ficha e garantias. Landing, trilha e termo de adesão reescritos para grãos.
+- 54 testes. Fluxo completo conferido no navegador.
+
 ## Pendências
 
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.
@@ -71,6 +81,8 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - Assinatura digital (Clicksign, ZapSign ou D4Sign) integrada; hoje o admin marca como assinado.
 - `DADOS_SECRET` no Render antes de cadastros reais.
 - Minuta oficial do emissor para substituir o termo de adesão resumido.
+- Enquadramento CVM do modelo de grãos (contrato de investimento coletivo; caminhos possíveis: CRA por securitizadora com distribuidor, ou crowdfunding pela Resolução 88).
+- Integração com o motor de viabilidade do LogPro para avaliar cada operação antes da compra.
 - Imagem `client/public/og.png` para compartilhamento.
 - Atualizar `shared/mercado.ts` com fonte oficial antes de publicar.
 - Validar o questionário de suitability com o emissor e o jurídico.

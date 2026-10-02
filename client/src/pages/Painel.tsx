@@ -5,6 +5,7 @@ import { SeloEmissor } from "@/components/landing/SiteLayout";
 import { trpc, type Saidas } from "@/lib/trpc";
 import { Seo } from "@/components/SEO";
 import { formatarBRL, formatarPct } from "~shared/finance";
+import { BarraAlocacao, type ChaveFatia } from "@/components/oferta/Ficha";
 
 type ContratoPainel = Saidas["investidor"]["painel"]["contratos"][number];
 
@@ -21,14 +22,14 @@ function ProximoPasso({ temContrato }: { temContrato: boolean }) {
     { feito: trilha.data.completa, titulo: "Trilha Antes de investir", det: `${feitos} de ${trilha.data.modulos.length} módulos`, href: "/trilha" },
     { feito: perfil.data.suitability !== "nao_avaliado", titulo: "Questionário de perfil", det: "5 perguntas", href: "/perfil" },
     { feito: Boolean(perfil.data.cadastroCompletoEm), titulo: "Cadastro do investidor", det: "dados para o contrato", href: "/cadastro" },
-    { feito: Boolean(perfil.data.interesseAporteEm), titulo: "Conversa com especialista", det: perfil.data.interesseAporteEm ? "pedido enviado" : "manifestar interesse", href: "/perfil" },
+    { feito: Boolean(perfil.data.interesseAporteEm), titulo: "Reserva numa oferta", det: perfil.data.interesseAporteEm ? "reserva enviada" : "escolha a oferta, o valor e o prazo", href: "/ofertas" },
   ];
   const atual = passos.findIndex((p) => !p.feito);
   if (atual === -1) {
     return (
       <section className="bloco">
         <p className="aviso aviso--ok" style={{ margin: 0 }}>
-          Tudo pronto do seu lado. Um especialista vai entrar em contato para apresentar o contrato.
+          Tudo pronto do seu lado. Um especialista vai entrar em contato para gerar o contrato a partir da sua reserva.
         </p>
       </section>
     );
@@ -139,6 +140,45 @@ function FormResgate({ c, habilitado, previsto, onFeito }: { c: ContratoPainel; 
   );
 }
 
+function MinhasReservas() {
+  const utils = trpc.useUtils();
+  const reservas = trpc.investidor.reservas.useQuery();
+  const cancelar = trpc.investidor.cancelarReserva.useMutation({ onSuccess: () => void utils.investidor.reservas.invalidate() });
+  if (!reservas.data?.length) {
+    return (
+      <section className="bloco bloco--cta">
+        <div>
+          <h2>Ofertas abertas</h2>
+          <p className="bloco__nota">Veja as operações de grãos, as garantias e a cobertura de cada oferta antes de reservar.</p>
+        </div>
+        <Link href="/ofertas" className="btn btn--primario btn--peq">Ver ofertas</Link>
+      </section>
+    );
+  }
+  return (
+    <section className="bloco">
+      <div className="bloco__cab"><h2>Minhas reservas</h2><Link href="/ofertas" className="btn btn--ghost btn--peq">Ver ofertas</Link></div>
+      <div className="tabela-wrap">
+        <table className="tabela">
+          <thead><tr><th>Oferta</th><th className="dir">Valor</th><th>Prazo</th><th className="dir">Taxa</th><th /></tr></thead>
+          <tbody>
+            {reservas.data.map((r) => (
+              <tr key={r.id}>
+                <td><Link href={`/ofertas/${r.ofertaId}`}><strong>{r.oferta}</strong></Link><span className="sub">{r.codigo} · reservado em {data(r.criadoEm as unknown as string)}</span></td>
+                <td className="dir num">{formatarBRL(r.valorCentavos)}</td>
+                <td>{r.prazoMeses} meses</td>
+                <td className="dir num">{formatarPct(r.taxaMensal)} a.m.</td>
+                <td className="dir"><button className="btn btn--ghost btn--peq" onClick={() => window.confirm("Cancelar esta reserva?") && cancelar.mutate({ id: r.id })}>Cancelar</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="bloco__nota">Um especialista entra em contato para gerar o contrato a partir da reserva.</p>
+    </section>
+  );
+}
+
 function Extrato({ contratoId }: { contratoId: number }) {
   const { data: linhas } = trpc.investidor.extrato.useQuery({ contratoId });
   if (!linhas?.length) return <p className="bloco__nota">Sem lançamentos.</p>;
@@ -157,13 +197,13 @@ function Extrato({ contratoId }: { contratoId: number }) {
 
 function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["investidor"]["painel"] }) {
   const utils = trpc.useUtils();
-  const [aba, setAba] = useState<"evolucao" | "resgate" | "extrato">("evolucao");
+  const [aba, setAba] = useState<"onde" | "evolucao" | "resgate" | "extrato">("onde");
   return (
     <section className="bloco contrato">
       <div className="bloco__cab">
         <div>
           <h2>{c.oferta}</h2>
-          <span className="bloco__det">Contrato #{c.id} · {formatarPct(c.taxaMensal)} a.m. · {data(c.inicio)} a {data(c.vencimento)}</span>
+          <span className="bloco__det">{c.ofertaCodigo ? `${c.ofertaCodigo} · ` : ""}Contrato #{c.id} · {formatarPct(c.taxaMensal)} a.m. · {data(c.inicio)} a {data(c.vencimento)}</span>
         </div>
         <Link href={`/contrato/${c.id}`} className="btn btn--ghost btn--peq">Ver contrato</Link>
       </div>
@@ -173,12 +213,21 @@ function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["inves
         <div className="kpi"><span>Saldo total</span><strong className="num">{formatarBRL(c.principalCentavos + c.disponivelCentavos)}</strong><small>Rendimento bruto acumulado {formatarBRL(c.rendimentoBrutoCentavos)} · já resgatado {formatarBRL(c.resgatadoCentavos)}</small></div>
       </div>
       <div className="abas" role="tablist">
-        {(["evolucao", "resgate", "extrato"] as const).map((a) => (
+        {(["onde", "evolucao", "resgate", "extrato"] as const).map((a) => (
           <button key={a} role="tab" aria-selected={aba === a} className={aba === a ? "on" : ""} onClick={() => setAba(a)}>
-            {a === "evolucao" ? "Evolução" : a === "resgate" ? "Pedir resgate" : "Extrato"}
+            {a === "onde" ? "Onde está seu dinheiro" : a === "evolucao" ? "Evolução" : a === "resgate" ? "Pedir resgate" : "Extrato"}
           </button>
         ))}
       </div>
+      {aba === "onde" && (
+        <>
+          <BarraAlocacao
+            titulo="Sua parte proporcional nas operações da oferta, hoje"
+            fatias={c.alocacao.map((a) => ({ chave: a.grao as ChaveFatia, rotulo: a.rotulo, centavos: a.centavos, det: a.operacoes ? `${a.grao === "a_receber" ? "" : "grão comprado · "}${a.operacoes} ${a.operacoes === 1 ? "operação" : "operações"}` : undefined }))}
+          />
+          <Link href={`/ofertas/${c.ofertaId}`} className="btn btn--ghost btn--peq">Ver operações e garantias da oferta</Link>
+        </>
+      )}
       {aba === "evolucao" && <GraficoEvolucao c={c} hoje={painel.hoje} />}
       {aba === "resgate" && (
         <FormResgate c={c} habilitado={painel.resgateHabilitado} previsto={painel.pagamentoSePedirHoje}
@@ -193,7 +242,6 @@ const STATUS_CLASSE: Record<string, string> = { ativo: "status--adimplente", can
 
 export default function Painel() {
   const painel = trpc.investidor.painel.useQuery();
-  const lastro = trpc.plataforma.lastro.useQuery();
   const contratos = painel.data?.contratos ?? [];
   const ativos = contratos.filter((c) => c.status === "ativo");
   const pendentes = contratos.filter((c) => c.status === "aguardando_assinatura" || c.status === "aguardando_aporte");
@@ -203,7 +251,7 @@ export default function Painel() {
   }), [ativos]);
 
   return (
-    <AreaLogada titulo="Minha carteira" subtitulo={ativos.length > 1 ? `${ativos.length} contratos ativos · ${formatarBRL(totais.aportado)} aportado · ${formatarBRL(totais.disponivel)} disponível` : "Contratos, rendimento e o lastro do pool."}>
+    <AreaLogada titulo="Minha carteira" subtitulo={ativos.length > 1 ? `${ativos.length} contratos ativos · ${formatarBRL(totais.aportado)} aportado · ${formatarBRL(totais.disponivel)} disponível` : "Contratos, rendimento e onde está o seu dinheiro."}>
       <Seo titulo="Minha carteira" indexar={false} />
       <ProximoPasso temContrato={contratos.some((c) => c.status !== "cancelado")} />
 
@@ -235,34 +283,12 @@ export default function Painel() {
 
       {painel.data && ativos.map((c) => <ContratoAtivo key={c.id} c={c} painel={painel.data!} />)}
 
-      <section className="bloco">
-        <div className="bloco__cab">
-          <h2>Lastro do pool</h2>
-          <span className="bloco__det">{lastro.data?.exemplo ? <span className="etiqueta">exemplo</span> : `${lastro.data?.itens.length ?? 0} CCBs`}</span>
-        </div>
-        <div className="tabela-wrap">
-          <table className="tabela">
-            <thead><tr><th>CCB</th><th>Devedor</th><th>Garantia</th><th className="dir">LTV</th><th>Situação</th></tr></thead>
-            <tbody>
-              {(lastro.data?.itens ?? []).map((l) => (
-                <tr key={l.codigo}>
-                  <td className="mono">{l.codigo}</td>
-                  <td><span className={`ponto ponto--${l.setor}`} aria-hidden="true" /> {l.devedor}</td>
-                  <td>{l.garantia}</td>
-                  <td className="dir num">{formatarPct(l.ltv, 0)}</td>
-                  <td><span className={`status status--${l.situacao === "adimplente" ? "adimplente" : "atraso"}`}>{l.situacao === "adimplente" ? "Em dia" : `${l.diasAtraso} dias de atraso`}</span></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        <p className="bloco__nota">LTV é o valor do crédito dividido pelo valor da garantia. Quanto menor, maior a folga.</p>
-      </section>
+      <MinhasReservas />
 
       <section className="bloco bloco--duas">
         <div>
           <h2>Quem está por trás</h2>
-          <p className="bloco__nota" style={{ marginTop: 8 }}>O RioRendeFácil é a tecnologia. O emissor parceiro emite as CCBs e os recursos ficam em conta vinculada em nome dele, nunca na plataforma.</p>
+          <p className="bloco__nota" style={{ marginTop: 8 }}>O RioRendeFácil é a tecnologia. A Rio compra e vende os grãos, o emissor parceiro estrutura a oferta e os recursos ficam em conta vinculada, nunca na plataforma.</p>
         </div>
         <SeloEmissor />
       </section>

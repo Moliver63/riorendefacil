@@ -15,6 +15,13 @@
       "when": 1790962507093,
       "tag": "0001_cadastro_e_ciclo",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1790966077476,
+      "tag": "0002_graos_e_garantias",
+      "breakpoints": true
     }
   ]
 }

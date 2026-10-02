@@ -14,7 +14,7 @@ async function sha256Arquivo(f: File) {
 }
 
 /** Envia arquivo ao R2 e registra no cofre. Devolve a chave (para comprovantes). */
-function EnviarArquivo({ escopo, escopoId, tipo, rotulo, onEnviado }: { escopo: "investidor" | "contrato"; escopoId: number; tipo: string; rotulo: string; onEnviado?: (chave: string) => void }) {
+export function EnviarArquivo({ escopo, escopoId, tipo, rotulo, onEnviado }: { escopo: "investidor" | "contrato" | "operacao"; escopoId: number; tipo: string; rotulo: string; onEnviado?: (chave: string) => void }) {
   const preparar = trpc.admin.documentos.prepararEnvio.useMutation();
   const registrar = trpc.admin.documentos.registrar.useMutation();
   const [estado, setEstado] = useState<string | null>(null);
@@ -26,7 +26,7 @@ function EnviarArquivo({ escopo, escopoId, tipo, rotulo, onEnviado }: { escopo: 
       const r = await fetch(url, { method: "PUT", body: f, headers: { "Content-Type": f.type } });
       if (!r.ok) throw new Error("Falha no envio para o armazenamento.");
       await registrar.mutateAsync({ escopo, escopoId, tipo, titulo: `${rotulo} (${f.name})`, chave, sha256: hash, tamanhoBytes: f.size });
-      setEstado("Enviado e disponível no cofre do investidor.");
+      setEstado(escopo === "operacao" ? "Enviado e registrado." : "Enviado e disponível no cofre do investidor.");
       onEnviado?.(chave);
     } catch (e) {
       setEstado((e as Error).message);
@@ -41,13 +41,15 @@ function EnviarArquivo({ escopo, escopoId, tipo, rotulo, onEnviado }: { escopo: 
   );
 }
 
-function NovoContrato({ investidorId, apto, motivo }: { investidorId: number; apto: boolean; motivo: string | null }) {
+type ReservaSel = { id: number; ofertaId: number; valorCentavos: number; prazoMeses: number };
+
+function NovoContrato({ investidorId, apto, motivo, reserva }: { investidorId: number; apto: boolean; motivo: string | null; reserva?: ReservaSel }) {
   const utils = trpc.useUtils();
   const ofertas = trpc.admin.ofertas.listar.useQuery();
   const ativas = (ofertas.data ?? []).filter((o) => o.ativa);
-  const [ofertaId, setOfertaId] = useState<number | "">("");
-  const [valor, setValor] = useState("");
-  const [prazo, setPrazo] = useState("12");
+  const [ofertaId, setOfertaId] = useState<number | "">(reserva?.ofertaId ?? "");
+  const [valor, setValor] = useState(reserva ? (reserva.valorCentavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "");
+  const [prazo, setPrazo] = useState(String(reserva?.prazoMeses ?? 12));
   const [obs, setObs] = useState("");
   const criar = trpc.admin.contratos.criar.useMutation({ onSuccess: () => { setValor(""); setObs(""); void utils.admin.investidores.detalhe.invalidate(); void utils.admin.investidores.listar.invalidate(); } });
 
@@ -58,7 +60,7 @@ function NovoContrato({ investidorId, apto, motivo }: { investidorId: number; ap
   if (!apto) return <p className="aviso aviso--erro">Ainda não dá para gerar contrato: {motivo}</p>;
   if (!ativas.length) return <p className="aviso aviso--erro">Nenhuma oferta ativa. Ative uma em Ofertas e lastro.</p>;
   return (
-    <form className="novo-contrato" onSubmit={(e) => { e.preventDefault(); if (oferta && taxa) criar.mutate({ investidorId, ofertaId: oferta.id, principalCentavos: centavos, prazoMeses: Number(prazo), observacoes: obs || undefined }); }}>
+    <form className="novo-contrato" onSubmit={(e) => { e.preventDefault(); if (oferta && taxa) criar.mutate({ investidorId, ofertaId: oferta.id, principalCentavos: centavos, prazoMeses: Number(prazo), observacoes: obs || undefined, reservaId: reserva && reserva.ofertaId === oferta.id ? reserva.id : undefined }); }}>
       <label className="campo-form">Oferta
         <select value={oferta?.id ?? ""} onChange={(e) => setOfertaId(Number(e.target.value))}>
           {ativas.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
@@ -78,7 +80,7 @@ function NovoContrato({ investidorId, apto, motivo }: { investidorId: number; ap
         <input value={obs} onChange={(e) => setObs(e.target.value)} />
       </label>
       {criar.error && <p className="aviso aviso--erro novo-contrato__obs">{criar.error.message}</p>}
-      <button className="btn btn--primario" disabled={!taxa || criar.isPending}>Gerar contrato</button>
+      <button className="btn btn--primario" disabled={!taxa || criar.isPending}>{reserva ? "Gerar contrato da reserva" : "Gerar contrato"}</button>
     </form>
   );
 }
@@ -124,6 +126,7 @@ function AcoesContrato({ c }: { c: { id: number; status: string } }) {
 
 function Ficha({ id, onFechar }: { id: number; onFechar: () => void }) {
   const { data: d, isLoading } = trpc.admin.investidores.detalhe.useQuery({ id });
+  const [reservaSel, setReservaSel] = useState<ReservaSel | undefined>();
   if (isLoading || !d) return <div className="ficha"><p className="carregando">Carregando…</p></div>;
   const cad = d.cadastro;
   const apto = Boolean(d.trilhaConcluidaEm && d.perfil?.adequado && cad);
@@ -170,8 +173,23 @@ function Ficha({ id, onFechar }: { id: number; onFechar: () => void }) {
         </div>
       ))}
 
+      <h3>Reservas</h3>
+      {d.reservas.filter((r) => r.status === "ativa").length === 0 ? (
+        <p className="bloco__nota">Nenhuma reserva em aberto.</p>
+      ) : (
+        d.reservas.filter((r) => r.status === "ativa").map((r) => (
+          <div key={r.id} className="ficha__contrato ficha__reserva">
+            <div className="ficha__contrato-cab">
+              <strong>{r.codigo ?? r.oferta} · {formatarBRL(r.valorCentavos)} · {r.prazoMeses}m · {formatarPct(r.taxaMensal)} a.m.</strong>
+              <button className="btn btn--primario btn--peq" onClick={() => setReservaSel({ id: r.id, ofertaId: r.ofertaId, valorCentavos: r.valorCentavos, prazoMeses: r.prazoMeses })}>Usar no contrato</button>
+            </div>
+            <span className="bloco__det">Reservado em {data(r.criadoEm)}</span>
+          </div>
+        ))
+      )}
+
       <h3>Novo contrato</h3>
-      <NovoContrato investidorId={d.id} apto={apto} motivo={motivo} />
+      <NovoContrato key={reservaSel?.id ?? "novo"} investidorId={d.id} apto={apto} motivo={motivo} reserva={reservaSel} />
 
       <h3>Documentos do investidor</h3>
       <EnviarArquivo escopo="investidor" escopoId={d.id} tipo="documento_investidor" rotulo="Enviar documento" />
@@ -206,7 +224,7 @@ export default function AdminInvestidores() {
         {isLoading ? <p className="carregando">Carregando…</p> : !lista.length ? <Vazio titulo="Nenhum investidor neste filtro" /> : (
           <div className="tabela-wrap">
             <table className="tabela">
-              <thead><tr><th>Investidor</th><th>Etapas</th><th>Interesse</th><th className="dir">Contratos</th><th /></tr></thead>
+              <thead><tr><th>Investidor</th><th>Etapas</th><th className="dir">Reserva</th><th className="dir">Contratos</th><th /></tr></thead>
               <tbody>
                 {lista.map((i) => (
                   <tr key={i.id}>
@@ -217,7 +235,7 @@ export default function AdminInvestidores() {
                       <Marca ok={Boolean(i.cadastroEm)} texto="Cadastro" />
                       {i.ppe && <span className="status status--alerta">PEP</span>}
                     </td>
-                    <td>{i.interesseAporteEm ? data(i.interesseAporteEm) : "–"}</td>
+                    <td className="dir num">{i.reservaCentavos ? <strong>{formatarBRL(i.reservaCentavos)}</strong> : "–"}{i.interesseAporteEm && <span className="sub">{data(i.interesseAporteEm)}</span>}</td>
                     <td className="dir num">{i.contratos}</td>
                     <td className="dir"><button className="btn btn--ghost btn--peq" onClick={() => setAberto(i.id)}>Abrir ficha</button></td>
                   </tr>

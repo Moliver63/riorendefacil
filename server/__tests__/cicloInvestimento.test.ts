@@ -99,6 +99,19 @@ test("ciclo completo: cadastro → contrato → aporte → resgate pago", async 
     prazoResgateDias: 7,
   });
   await ca.admin.ofertas.ativar({ id: oferta.id, ativa: true });
+  // garantia suficiente para a cobertura mínima de 130%
+  await ca.admin.ccbs.salvar({
+    ofertaId: oferta.id,
+    codigo: "CCB-G-CICLO",
+    setor: "imobiliario",
+    devedorDescricao: "Imóvel em garantia",
+    valorCentavos: 100_000_00,
+    garantiaTipo: "Alienação fiduciária",
+    garantiaValorCentavos: 1_000_000_00,
+    vencimento: "2030-01-01",
+    situacao: "adimplente",
+    diasAtraso: 0,
+  });
 
   // sem pré-requisitos, o admin não consegue criar contrato
   const invId = (await ca.admin.investidores.listar()).find((l) => l.email === "maria-ciclo@exemplo.com")!.id;

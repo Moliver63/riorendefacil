@@ -29,6 +29,7 @@ export function Topo() {
       <div className="topo__in">
         <Marca />
         <nav className="topo__nav" aria-label="Principal">
+          <Link href="/ofertas">Ofertas</Link>
           <a href={ancora("como-funciona")}>Como funciona</a>
           <a href={ancora("simulador")}>Simulador</a>
           <a href={ancora("riscos")}>Riscos</a>
@@ -56,7 +57,7 @@ export function SeloEmissor() {
       <div className="selo">
         {e.logoUrl && <img src={e.logoUrl} alt={`Logo ${e.nome}`} height={32} />}
         <div>
-          <span className="selo__rot">Emissor das CCBs</span>
+          <span className="selo__rot">Emissor da oferta</span>
           <strong>{e.nome}</strong>
           {e.cnpj && <span className="selo__det">CNPJ {e.cnpj}</span>}
           {e.registroCVM && <span className="selo__det">Registro CVM {e.registroCVM}</span>}
@@ -80,11 +81,12 @@ export function Rodape() {
         <div className="rodape__col">
           <Marca claro />
           <p>
-            O RioRendeFácil é uma plataforma de tecnologia. Não é banco, corretora nem emissor. As CCBs são emitidas e
-            custodiadas pelo emissor parceiro, e os recursos transitam apenas por conta vinculada em nome dele.
+            O RioRendeFácil é uma plataforma de tecnologia. Não é banco, corretora nem emissor. A oferta e as garantias
+            são estruturadas pelo emissor parceiro, e os recursos transitam apenas por conta vinculada.
           </p>
         </div>
         <nav className="rodape__links" aria-label="Rodapé">
+          <Link href="/ofertas">Ofertas</Link>
           <Link href="/conteudo">Conteúdo</Link>
           <Link href="/conteudo/o-que-e-ccb">O que é CCB</Link>
           <Link href="/conteudo/investimento-sem-fgc">Investimento sem FGC</Link>

@@ -7,7 +7,7 @@ import { TRPCError } from "@trpc/server";
 import { desc, eq, inArray, sql } from "drizzle-orm";
 import { router, adminProcedure } from "./trpc";
 import { db } from "../db";
-import { cadastros, contratos, investidores, ofertas, resgatesRendimento, usuarios } from "../schema";
+import { cadastros, contratos, investidores, ofertas, reservas, resgatesRendimento, usuarios } from "../schema";
 import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
 import { tetoDaFaixa, formatarBRL, formatarPct, type Faixa } from "../../shared/finance";
 import { mascararCpf } from "../../shared/cadastro";
@@ -22,6 +22,7 @@ import {
   somarMeses,
   totalResgatado,
 } from "../contratoService";
+import { exigirCoberturaParaNovoPrincipal, lancar } from "../lastroService";
 import { emailAporteConfirmado, emailContratoGerado, emailResgatePago, emailResgateRecusado, enviarEmail } from "./email";
 
 async function emailDoInvestidor(investidorId: number) {
@@ -55,6 +56,7 @@ export const investimentosRoutes = {
           cpfFinal: cadastros.cpfFinal,
           criadoEm: investidores.criadoEm,
           contratos: sql<number>`(select count(*)::int from ${contratos} c where c.investidor_id = ${investidores.id} and c.status <> 'cancelado')`,
+          reservaCentavos: sql<number>`(select coalesce(sum(r.valor_centavos), 0)::bigint from ${reservas} r where r.investidor_id = ${investidores.id} and r.status = 'ativa')`,
         })
         .from(investidores)
         .innerJoin(usuarios, eq(investidores.usuarioId, usuarios.id))
@@ -63,6 +65,7 @@ export const investimentosRoutes = {
         .limit(500);
       return linhas.map(({ suitabilityRespostas, cpfFinal, ...l }) => ({
         ...l,
+        reservaCentavos: Number(l.reservaCentavos),
         cpfMascarado: cpfFinal ? mascararCpf(cpfFinal) : null,
         perfilAdequado: Boolean((suitabilityRespostas as { adequado?: boolean } | null)?.adequado),
       }));
@@ -80,7 +83,14 @@ export const investimentosRoutes = {
       const cad = await getCadastro(input.id);
       await auditar({ atorId: ctx.usuario.id, acao: "cadastro_visualizado", entidade: "investidor", entidadeId: input.id, ip: ctx.ip });
       const lista = await db.select().from(contratos).where(eq(contratos.investidorId, input.id)).orderBy(desc(contratos.criadoEm));
+      const minhasReservas = await db
+        .select({ r: reservas, oferta: ofertas.nome, codigo: ofertas.codigo })
+        .from(reservas)
+        .innerJoin(ofertas, eq(reservas.ofertaId, ofertas.id))
+        .where(eq(reservas.investidorId, input.id))
+        .orderBy(desc(reservas.criadoEm));
       return {
+        reservas: minhasReservas.map(({ r, oferta, codigo }) => ({ ...r, taxaMensal: Number(r.taxaMensal), oferta, codigo })),
         id: inv.inv.id,
         email: inv.email,
         nome: inv.nome,
@@ -146,6 +156,7 @@ export const investimentosRoutes = {
           principalCentavos: z.number().int().min(100_00),
           prazoMeses: z.number().int().min(1).max(60),
           observacoes: z.string().max(2000).optional(),
+          reservaId: z.number().int().optional(),
         }),
       )
       .mutation(async ({ ctx, input }) => {
@@ -169,6 +180,7 @@ export const investimentosRoutes = {
         if (input.prazoMeses * 30 < o.carenciaPrincipalDias) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `Prazo menor que a carência do principal (${o.carenciaPrincipalDias} dias).` });
         }
+        await exigirCoberturaParaNovoPrincipal(o.id, input.principalCentavos);
 
         const [c] = await db
           .insert(contratos)
@@ -184,6 +196,12 @@ export const investimentosRoutes = {
             criadoPor: ctx.usuario.id,
           })
           .returning();
+        if (input.reservaId) {
+          await db
+            .update(reservas)
+            .set({ status: "convertida", contratoId: c!.id, atualizadoEm: new Date() })
+            .where(sql`${reservas.id} = ${input.reservaId} and ${reservas.investidorId} = ${inv.id} and ${reservas.status} = 'ativa'`);
+        }
         await auditar({
           atorId: ctx.usuario.id,
           acao: "contrato_criado",
@@ -239,6 +257,16 @@ export const investimentosRoutes = {
           .update(contratos)
           .set({ status: "ativo", inicio: input.inicio, vencimento, ativadoEm: new Date(), comprovanteAporteChave: input.comprovanteChave ?? null })
           .where(eq(contratos.id, c.id));
+        await lancar({
+          ofertaId: c.ofertaId,
+          tipo: "aporte",
+          valorCentavos: c.principalCentavos,
+          descricao: `Aporte do contrato #${c.id}`,
+          data: input.inicio,
+          contratoId: c.id,
+          comprovanteChave: input.comprovanteChave,
+          criadoPor: ctx.usuario.id,
+        });
         await auditar({ atorId: ctx.usuario.id, acao: "aporte_confirmado", entidade: "contrato", entidadeId: c.id, dados: { inicio: input.inicio, vencimento }, ip: ctx.ip });
         const dest = await emailDoInvestidor(c.investidorId);
         if (dest) {
@@ -323,6 +351,17 @@ export const investimentosRoutes = {
         if (!r) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Aprove o pedido antes de marcar como pago." });
         await auditar({ atorId: ctx.usuario.id, acao: "resgate_pago", entidade: "resgate", entidadeId: input.id, ip: ctx.ip });
         const c = await getContrato(r.contratoId);
+        // sai da conta o bruto: líquido para o investidor e IR recolhido
+        await lancar({
+          ofertaId: c.ofertaId,
+          tipo: "pagamento_rendimento",
+          valorCentavos: r.valorCentavos,
+          descricao: `Rendimento do contrato #${c.id} (líquido ${formatarBRL(r.valorCentavos - Number(r.irRetidoCentavos))} + IR ${formatarBRL(Number(r.irRetidoCentavos))})`,
+          contratoId: c.id,
+          resgateId: r.id,
+          comprovanteChave: input.comprovanteChave,
+          criadoPor: ctx.usuario.id,
+        });
         const dest = await emailDoInvestidor(c.investidorId);
         if (dest) {
           void enviarEmail({

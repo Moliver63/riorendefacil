@@ -12,6 +12,8 @@ import Conteudo from "@/pages/Conteudo";
 import Artigo from "@/pages/Artigo";
 import Login from "@/pages/Login";
 import NotFound from "@/pages/NotFound";
+import Ofertas from "@/pages/Ofertas";
+import OfertaDetalhe from "@/pages/OfertaDetalhe";
 
 // Pages - Investidor (carregadas sob demanda)
 const Painel = lazy(() => import("@/pages/Painel"));
@@ -31,6 +33,7 @@ const AdminUsuarios = lazy(() => import("@/pages/AdminUsuarios"));
 const AdminAuditoria = lazy(() => import("@/pages/AdminAuditoria"));
 const AdminInvestidores = lazy(() => import("@/pages/AdminInvestidores"));
 const AdminResgates = lazy(() => import("@/pages/AdminResgates"));
+const AdminOperacoes = lazy(() => import("@/pages/AdminOperacoes"));
 
 const INVESTIDOR = ["investidor"] as const;
 const EQUIPE = ["assessor", "admin"] as const;
@@ -53,6 +56,8 @@ function Rotas() {
       <Route path="/conteudo" component={Conteudo} />
       <Route path="/conteudo/:slug" component={Artigo} />
       <Route path="/entrar" component={Login} />
+      <Route path="/ofertas" component={Ofertas} />
+      <Route path="/ofertas/:id">{(p) => <OfertaDetalhe id={Number(p.id)} />}</Route>
 
       {/* ── Investidor ── */}
       <Route path="/painel">{() => <ProtectedRoute roles={[...INVESTIDOR]}><Painel /></ProtectedRoute>}</Route>
@@ -73,6 +78,7 @@ function Rotas() {
       <Route path="/admin/usuarios">{() => <ProtectedRoute roles={[...ADMIN]}><AdminUsuarios /></ProtectedRoute>}</Route>
       <Route path="/admin/auditoria">{() => <ProtectedRoute roles={[...ADMIN]}><AdminAuditoria /></ProtectedRoute>}</Route>
       <Route path="/admin/investidores">{() => <ProtectedRoute roles={[...ADMIN]}><AdminInvestidores /></ProtectedRoute>}</Route>
+      <Route path="/admin/operacoes">{() => <ProtectedRoute roles={[...ADMIN]}><AdminOperacoes /></ProtectedRoute>}</Route>
       <Route path="/admin/resgates">{() => <ProtectedRoute roles={[...ADMIN]}><AdminResgates /></ProtectedRoute>}</Route>
 
       <Route component={NotFound} />

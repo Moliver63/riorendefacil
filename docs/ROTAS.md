@@ -18,6 +18,8 @@ Papéis: `investidor`, `assessor`, `admin`. "Equipe" = assessor ou admin.
 | `/conteudo` | `pages/Conteudo.tsx` | público |
 | `/conteudo/:slug` | `pages/Artigo.tsx` | público |
 | `/entrar` | `pages/Login.tsx` | público |
+| `/ofertas` | `pages/Ofertas.tsx` | público (moldura logada para investidor) |
+| `/ofertas/:id` | `pages/OfertaDetalhe.tsx` | público; reserva só para investidor |
 | `/painel` | `pages/Painel.tsx` | investidor |
 | `/trilha` | `pages/Trilha.tsx` | investidor |
 | `/trilha/:slug` | `pages/TrilhaModulo.tsx` | investidor |
@@ -33,6 +35,7 @@ Papéis: `investidor`, `assessor`, `admin`. "Equipe" = assessor ou admin.
 | `/admin/auditoria` | `pages/AdminAuditoria.tsx` | admin |
 | `/admin/investidores` | `pages/AdminInvestidores.tsx` | admin |
 | `/admin/resgates` | `pages/AdminResgates.tsx` | admin |
+| `/admin/operacoes` | `pages/AdminOperacoes.tsx` | admin |
 | qualquer outra | `pages/NotFound.tsx` | público |
 
 Sem login, quem abre uma página protegida vai para `/entrar?voltar=...`. Logado com papel errado, vai para o início do próprio papel (`/painel` ou `/admin`). O bloqueio de verdade é no servidor: a guarda do cliente é só navegação.
@@ -100,6 +103,10 @@ Leitura é `query` (GET), escrita é `mutation` (POST). Formato superjson.
 | `investidor.extrato` | query | investidor | aporte e resgates do contrato |
 | `investidor.previaResgate` | query | investidor | IR e líquido de um valor antes de pedir |
 | `investidor.resgates` | query | investidor | pedidos de resgate |
+| `investidor.oferta` | query | investidor | ficha da oferta (inclusive encerrada, se tiver contrato) com a reserva própria |
+| `investidor.pendencias` | query | investidor | etapas que faltam antes de reservar |
+| `investidor.reservar` | mutation | investidor | reserva valor e prazo com a taxa da faixa; uma ativa por oferta |
+| `investidor.reservas` / `cancelarReserva` | query / mutation | investidor | reservas em aberto |
 | `investidor.documentos` | query | investidor | documentos visíveis para a conta |
 | `investidor.baixarDocumento` | mutation | investidor | URL assinada de 5 min, se o documento for da conta |
 | `investidor.manifestarInteresse` | mutation | investidor | exige trilha, perfil adequado e cadastro |
@@ -132,6 +139,14 @@ Leitura é `query` (GET), escrita é `mutation` (POST). Formato superjson.
 | `admin.contratos.confirmarAporte` | mutation | admin | aguardando_aporte → ativo; define início e vencimento |
 | `admin.contratos.cancelar` | mutation | admin | só antes de ativo |
 | `admin.contratos.extrato` | query | admin | extrato de um contrato |
+| `admin.operacoes.painel` | query | admin | posição da oferta: caixa, em operação, a receber, obrigações, cobertura, margem liberável |
+| `admin.operacoes.salvar` | mutation | admin | nova operação de grão (edição só em análise) |
+| `admin.operacoes.registrarCompra` | mutation | admin | exige cobertura e saldo; lança compra e custos na conta |
+| `admin.operacoes.registrarTransporte` / `registrarVenda` | mutation | admin | transportadora e destino; comprador, valor e vencimento do recebível |
+| `admin.operacoes.registrarRecebimento` | mutation | admin | aceita parcelas; lança recebimento na conta |
+| `admin.operacoes.marcarAtraso` / `cancelar` | mutation | admin | atraso do comprador; cancelamento só em análise |
+| `admin.conta.extrato` | query | admin | lançamentos da conta vinculada |
+| `admin.conta.lancar` | mutation | admin | custos, margem da Rio (limitada pela ordem de pagamento), principal devolvido, ajuste |
 | `admin.resgates.listar` | query | admin | pedidos com conta de destino |
 | `admin.resgates.aprovar` | mutation | admin | solicitado → aprovado |
 | `admin.resgates.marcarPago` | mutation | admin | aprovado → pago, avisa o investidor |

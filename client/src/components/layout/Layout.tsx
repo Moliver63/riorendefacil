@@ -8,6 +8,7 @@ type Item = { href: string; rotulo: string; papeis?: string[] };
 
 const MENU_INVESTIDOR: Item[] = [
   { href: "/painel", rotulo: "Carteira" },
+  { href: "/ofertas", rotulo: "Investir" },
   { href: "/trilha", rotulo: "Trilha" },
   { href: "/documentos", rotulo: "Documentos" },
   { href: "/perfil", rotulo: "Perfil" },
@@ -18,8 +19,9 @@ const MENU_ADMIN: Item[] = [
   { href: "/admin/leads", rotulo: "Leads" },
   { href: "/admin/comunicacao", rotulo: "Comunicação" },
   { href: "/admin/investidores", rotulo: "Investidores", papeis: ["admin"] },
+  { href: "/admin/operacoes", rotulo: "Operações", papeis: ["admin"] },
   { href: "/admin/resgates", rotulo: "Resgates", papeis: ["admin"] },
-  { href: "/admin/ofertas", rotulo: "Ofertas e lastro", papeis: ["admin"] },
+  { href: "/admin/ofertas", rotulo: "Ofertas e garantias", papeis: ["admin"] },
   { href: "/admin/usuarios", rotulo: "Usuários", papeis: ["admin"] },
   { href: "/admin/auditoria", rotulo: "Auditoria", papeis: ["admin"] },
 ];
@@ -43,7 +45,7 @@ export function AreaLogada({ titulo, subtitulo, acoes, children }: { titulo: str
         <Marca />
         <nav className="app__nav" aria-label="Área logada">
           {menu.map((i) => (
-            <Link key={i.href} href={i.href} className={loc === i.href ? "ativo" : ""} aria-current={loc === i.href ? "page" : undefined}>
+            <Link key={i.href} href={i.href} className={loc === i.href || (i.href !== "/admin" && loc.startsWith(i.href + "/")) ? "ativo" : ""} aria-current={loc === i.href ? "page" : undefined}>
               {i.rotulo}
             </Link>
           ))}
