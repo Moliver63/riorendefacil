@@ -121,6 +121,58 @@ export const progressoTrilha = pgTable(
   (t) => ({ unico: uniqueIndex("progresso_trilha_unico").on(t.usuarioId, t.moduloSlug) }),
 );
 
+/**
+ * Cadastro completo do investidor (pessoa física), base da qualificação no
+ * contrato. Campos sensíveis (CPF, RG, conta, Pix) ficam cifrados com
+ * AES-256-GCM (server/cripto.ts); o CPF também tem um HMAC para garantir que
+ * duas contas não usem o mesmo documento, sem guardar o número em claro.
+ */
+export const cadastros = pgTable(
+  "cadastros",
+  {
+    id: serial("id").primaryKey(),
+    investidorId: integer("investidor_id")
+      .notNull()
+      .references(() => investidores.id),
+    nomeCompleto: varchar("nome_completo", { length: 255 }).notNull(),
+    cpfCifrado: text("cpf_cifrado").notNull(),
+    cpfHash: varchar("cpf_hash", { length: 64 }).notNull(),
+    cpfFinal: varchar("cpf_final", { length: 4 }).notNull(),
+    dataNascimento: date("data_nascimento").notNull(),
+    rgCifrado: text("rg_cifrado"),
+    rgOrgao: varchar("rg_orgao", { length: 32 }),
+    nacionalidade: varchar("nacionalidade", { length: 64 }).notNull().default("brasileira"),
+    estadoCivil: varchar("estado_civil", { length: 32 }).notNull(),
+    profissao: varchar("profissao", { length: 128 }).notNull(),
+    telefone: varchar("telefone", { length: 32 }).notNull(),
+    cep: varchar("cep", { length: 8 }).notNull(),
+    logradouro: varchar("logradouro", { length: 255 }).notNull(),
+    numero: varchar("numero", { length: 32 }).notNull(),
+    complemento: varchar("complemento", { length: 128 }),
+    bairro: varchar("bairro", { length: 128 }).notNull(),
+    cidade: varchar("cidade", { length: 128 }).notNull(),
+    uf: varchar("uf", { length: 2 }).notNull(),
+    faixaRenda: varchar("faixa_renda", { length: 64 }).notNull(),
+    faixaPatrimonio: varchar("faixa_patrimonio", { length: 64 }).notNull(),
+    origemRecursos: varchar("origem_recursos", { length: 255 }).notNull(),
+    ppe: boolean("ppe").notNull().default(false),
+    bancoCodigo: varchar("banco_codigo", { length: 8 }).notNull(),
+    bancoNome: varchar("banco_nome", { length: 128 }).notNull(),
+    agencia: varchar("agencia", { length: 16 }).notNull(),
+    contaCifrada: text("conta_cifrada").notNull(),
+    contaFinal: varchar("conta_final", { length: 4 }).notNull(),
+    contaTipo: varchar("conta_tipo", { length: 16 }).notNull(),
+    pixCifrado: text("pix_cifrado"),
+    declaracaoVeracidadeEm: timestamp("declaracao_veracidade_em", { withTimezone: true }).notNull(),
+    criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+    atualizadoEm: timestamp("atualizado_em", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({
+    invIdx: uniqueIndex("cadastros_investidor_idx").on(t.investidorId),
+    cpfIdx: uniqueIndex("cadastros_cpf_idx").on(t.cpfHash),
+  }),
+);
+
 // ─── Captação ───────────────────────────────────────────────────────────────
 
 export const leads = pgTable(
@@ -200,6 +252,17 @@ export const contratos = pgTable(
     inicio: date("inicio"),
     vencimento: date("vencimento"),
     comprovanteAporteChave: text("comprovante_aporte_chave"),
+    /**
+     * "Foto" da qualificação do investidor no momento da criação (nome, CPF
+     * mascarado, endereço, estado civil, profissão, conta de resgate mascarada).
+     * O contrato não muda se o cadastro for editado depois.
+     */
+    qualificacao: jsonb("qualificacao"),
+    observacoes: text("observacoes"),
+    criadoPor: integer("criado_por").references(() => usuarios.id),
+    assinadoEm: timestamp("assinado_em", { withTimezone: true }),
+    ativadoEm: timestamp("ativado_em", { withTimezone: true }),
+    canceladoEm: timestamp("cancelado_em", { withTimezone: true }),
     criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => ({ invIdx: index("contratos_investidor_idx").on(t.investidorId) }),
@@ -219,6 +282,10 @@ export const resgatesRendimento = pgTable(
     previstoPara: date("previsto_para").notNull(),
     pagoEm: timestamp("pago_em", { withTimezone: true }),
     idempotencyKey: varchar("idempotency_key", { length: 64 }).notNull(),
+    aprovadoPor: integer("aprovado_por").references(() => usuarios.id),
+    pagoPor: integer("pago_por").references(() => usuarios.id),
+    comprovanteChave: text("comprovante_chave"),
+    motivoRecusa: varchar("motivo_recusa", { length: 500 }),
   },
   (t) => ({ idemIdx: uniqueIndex("resgates_idempotency_idx").on(t.idempotencyKey) }),
 );
@@ -272,3 +339,5 @@ export type Lead = typeof leads.$inferSelect;
 export type CCB = typeof ccbs.$inferSelect;
 export type Oferta = typeof ofertas.$inferSelect;
 export type Documento = typeof documentos.$inferSelect;
+export type Cadastro = typeof cadastros.$inferSelect;
+export type Contrato = typeof contratos.$inferSelect;

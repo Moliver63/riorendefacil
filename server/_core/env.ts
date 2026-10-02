@@ -37,6 +37,8 @@ export const ENV = {
   pgliteDir: process.env.PGLITE_DIR ?? ".data/pglite",
 
   sessionSecret: segredo("SESSION_SECRET"),
+  /** chave dos dados pessoais cifrados (CPF, conta). Ver server/cripto.ts */
+  dadosSecret: process.env.DADOS_SECRET ?? "",
   /** e-mails que viram admin automaticamente no primeiro login */
   adminEmails: lista(process.env.ADMIN_EMAILS),
 

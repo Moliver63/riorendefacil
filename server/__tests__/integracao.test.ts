@@ -157,7 +157,8 @@ test("interesse em aporte exige trilha e perfil adequado", async () => {
 
   const ok = await c.investidor.salvarSuitability({ respostas: { objetivo: 1, prazo: 2, reserva: 2, experiencia: 1, perda: 1 } });
   assert.equal(ok.adequado, true);
-  assert.deepEqual(await c.investidor.manifestarInteresse(), { ok: true });
+  // desde a sessão 05, o cadastro completo também é exigido (testado no ciclo completo)
+  await assert.rejects(c.investidor.manifestarInteresse(), /cadastro/);
 });
 
 test("resgate fica travado enquanto o emissor não está habilitado", async () => {

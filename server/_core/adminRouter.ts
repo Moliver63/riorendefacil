@@ -9,6 +9,7 @@ import { PAPEIS, SETORES, SITUACOES_CCB, STATUS_LEAD } from "../../shared/const"
 import { avaliarTexto } from "../../shared/complianceGuard";
 import { auditar } from "../auditoria";
 import { chaveDocumento, urlEnvio } from "../storage";
+import { investimentosRoutes } from "./adminInvestimentosRouter";
 
 const faixaSchema = z.object({
   minimoCentavos: z.number().int().positive(),
@@ -17,6 +18,9 @@ const faixaSchema = z.object({
 });
 
 export const adminRouter = router({
+  // investidores, contratos e resgates (back-office do investimento)
+  ...investimentosRoutes,
+
   resumo: equipeProcedure.query(async () => {
     const seteDias = new Date(Date.now() - 7 * 86_400_000);
     const [[leadsTotal], [leadsNovos], [leadsSemana], [investTotal], [trilhaOk], [interesse]] = await Promise.all([

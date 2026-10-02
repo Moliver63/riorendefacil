@@ -1,27 +1,43 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
-import { and, desc, eq, inArray, or, sum } from "drizzle-orm";
+import { and, desc, eq, inArray, or } from "drizzle-orm";
 import { router, comPapel } from "./trpc";
 import { ENV, r2Configurado } from "./env";
 import { db, getOrCreateInvestidor } from "../db";
 import { contratos, documentos, investidores, ofertas, resgatesRendimento, usuarios } from "../schema";
 import { QUESTOES_SUITABILITY, calcularPerfil } from "../../shared/suitability";
+import { esquemaCadastro, mascararCpf } from "../../shared/cadastro";
 import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
-import { dataPagamentoResgate, rendimentoAcumulado } from "../../shared/finance";
+import { dataPagamentoResgate, formatarBRL } from "../../shared/finance";
 import { auditar } from "../auditoria";
 import { urlDownload } from "../storage";
 import { enviarEmail } from "./email";
+import { cadastroRevelado, getCadastro, salvarCadastro } from "../cadastroService";
+import {
+  STATUS_CONTRATO_ROTULO,
+  evolucaoDoContrato,
+  extratoDoContrato,
+  getContrato,
+  irDoResgate,
+  saldoDoContrato,
+  totalResgatado,
+} from "../contratoService";
 
 const investidorProcedure = comPapel("investidor");
-
 const meuInvestidor = getOrCreateInvestidor;
 
-const diasEntre = (inicio: string | null) =>
-  inicio ? Math.max(0, Math.floor((Date.now() - new Date(inicio + "T00:00:00Z").getTime()) / 86_400_000)) : 0;
+/** Contrato do próprio investidor, ou 404 (nunca revela se o id existe para outra pessoa). */
+async function meuContrato(usuarioId: number, contratoId: number) {
+  const inv = await meuInvestidor(usuarioId);
+  const c = await getContrato(contratoId).catch(() => null);
+  if (!c || c.investidorId !== inv.id) throw new TRPCError({ code: "NOT_FOUND", message: "Contrato não encontrado." });
+  return c;
+}
 
 export const investidorRouter = router({
   perfil: investidorProcedure.query(async ({ ctx }) => {
     const inv = await meuInvestidor(ctx.usuario.id);
+    const cad = await getCadastro(inv.id);
     return {
       nome: ctx.usuario.nome,
       email: ctx.usuario.email,
@@ -30,6 +46,7 @@ export const investidorRouter = router({
       suitabilityEm: inv.suitabilityEm,
       trilhaConcluidaEm: inv.trilhaConcluidaEm,
       interesseAporteEm: inv.interesseAporteEm,
+      cadastroCompletoEm: cad?.atualizadoEm ?? null,
       kyc: inv.kyc,
     };
   }),
@@ -60,7 +77,34 @@ export const investidorRouter = router({
       return r;
     }),
 
-  /** Painel com contratos reais do investidor. */
+  // ─── Cadastro completo (qualificação do contrato) ───────────────────────────
+
+  /** Dados do próprio cadastro, decifrados para edição. Null se ainda não preencheu. */
+  cadastro: investidorProcedure.query(async ({ ctx }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    const c = await getCadastro(inv.id);
+    return c ? cadastroRevelado(c) : null;
+  }),
+
+  salvarCadastro: investidorProcedure.input(esquemaCadastro).mutation(async ({ ctx, input }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    const c = await salvarCadastro(inv.id, input);
+    // mantém nome e telefone da conta alinhados com o cadastro
+    await db.update(usuarios).set({ nome: input.nomeCompleto, telefone: input.telefone }).where(eq(usuarios.id, ctx.usuario.id));
+    await db.update(investidores).set({ pessoaPoliticamenteExposta: input.ppe }).where(eq(investidores.id, inv.id));
+    await auditar({
+      atorId: ctx.usuario.id,
+      acao: "cadastro_salvo",
+      entidade: "investidor",
+      entidadeId: inv.id,
+      dados: { cpf: mascararCpf(c.cpfFinal), ppe: input.ppe },
+      ip: ctx.ip,
+    });
+    return { ok: true as const };
+  }),
+
+  // ─── Carteira ───────────────────────────────────────────────────────────────
+
   painel: investidorProcedure.query(async ({ ctx }) => {
     const inv = await meuInvestidor(ctx.usuario.id);
     const lista = await db
@@ -70,46 +114,145 @@ export const investidorRouter = router({
       .where(eq(contratos.investidorId, inv.id))
       .orderBy(desc(contratos.criadoEm));
 
-    const ids = lista.map((l) => l.c.id);
-    const pagos = ids.length
-      ? await db
-          .select({ contratoId: resgatesRendimento.contratoId, total: sum(resgatesRendimento.valorCentavos) })
-          .from(resgatesRendimento)
-          .where(and(inArray(resgatesRendimento.contratoId, ids), inArray(resgatesRendimento.status, ["solicitado", "aprovado", "pago"])))
-          .groupBy(resgatesRendimento.contratoId)
-      : [];
-    const pagoPor = new Map(pagos.map((p) => [p.contratoId, Number(p.total ?? 0)]));
-
     const e = carregarEmissor(process.env);
-    return {
-      resgateHabilitado: pendenciasParaCaptar(e).length === 0,
-      pagamentoSePedirHoje: dataPagamentoResgate(new Date(), e.prazoResgateDias).toISOString().slice(0, 10),
-      contratos: lista.map(({ c, oferta }) => {
-        const ativo = c.status === "ativo";
-        const acc = ativo
-          ? rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), diasEntre(c.inicio), pagoPor.get(c.id) ?? 0)
-          : { brutoCentavos: 0, disponivelCentavos: 0 };
+    const hoje = new Date();
+    const itens = await Promise.all(
+      lista.map(async ({ c, oferta }) => {
+        const resgatado = await totalResgatado(c.id);
+        const s = saldoDoContrato(c, resgatado, hoje);
         return {
           id: c.id,
           oferta,
           status: c.status,
+          statusRotulo: STATUS_CONTRATO_ROTULO[c.status] ?? c.status,
           principalCentavos: c.principalCentavos,
           taxaMensal: Number(c.taxaMensal),
           prazoMeses: c.prazoMeses,
           inicio: c.inicio,
           vencimento: c.vencimento,
-          rendimentoBrutoCentavos: acc.brutoCentavos,
-          resgatadoCentavos: pagoPor.get(c.id) ?? 0,
-          disponivelCentavos: acc.disponivelCentavos,
+          rendimentoBrutoCentavos: s.brutoCentavos,
+          resgatadoCentavos: resgatado,
+          disponivelCentavos: s.disponivelCentavos,
+          irSeResgatarTudo: c.status === "ativo" ? irDoResgate(c, s.disponivelCentavos, hoje) : null,
+          evolucao: c.status === "ativo" ? evolucaoDoContrato(c) : [],
         };
       }),
+    );
+    return {
+      resgateHabilitado: pendenciasParaCaptar(e).length === 0,
+      pagamentoSePedirHoje: dataPagamentoResgate(hoje, e.prazoResgateDias).toISOString().slice(0, 10),
+      hoje: hoje.toISOString().slice(0, 10),
+      contratos: itens,
     };
   }),
 
+  /** Contrato para leitura e impressão (qualificação congelada + condições). */
+  contrato: investidorProcedure.input(z.object({ id: z.number().int() })).query(async ({ ctx, input }) => {
+    const c = await meuContrato(ctx.usuario.id, input.id);
+    const [o] = await db.select().from(ofertas).where(eq(ofertas.id, c.ofertaId)).limit(1);
+    const e = carregarEmissor(process.env);
+    return {
+      id: c.id,
+      status: c.status,
+      statusRotulo: STATUS_CONTRATO_ROTULO[c.status] ?? c.status,
+      qualificacao: c.qualificacao,
+      oferta: o?.nome ?? "",
+      principalCentavos: c.principalCentavos,
+      taxaMensal: Number(c.taxaMensal),
+      prazoMeses: c.prazoMeses,
+      carenciaPrincipalDias: o?.carenciaPrincipalDias ?? e.carenciaPrincipalDias,
+      prazoResgateDias: o?.prazoResgateDias ?? e.prazoResgateDias,
+      inicio: c.inicio,
+      vencimento: c.vencimento,
+      criadoEm: c.criadoEm,
+      assinadoEm: c.assinadoEm,
+      emissor: { nome: e.nome, cnpj: e.cnpj, custodiante: e.custodiante },
+    };
+  }),
+
+  extrato: investidorProcedure.input(z.object({ contratoId: z.number().int() })).query(async ({ ctx, input }) => {
+    const c = await meuContrato(ctx.usuario.id, input.contratoId);
+    return extratoDoContrato(c);
+  }),
+
+  /** Prévia do resgate: IR e líquido antes de confirmar. */
+  previaResgate: investidorProcedure
+    .input(z.object({ contratoId: z.number().int(), valorCentavos: z.number().int().positive() }))
+    .query(async ({ ctx, input }) => {
+      const c = await meuContrato(ctx.usuario.id, input.contratoId);
+      return irDoResgate(c, input.valorCentavos);
+    }),
+
+  solicitarResgate: investidorProcedure
+    .input(z.object({ contratoId: z.number().int(), valorCentavos: z.number().int().positive(), idempotencyKey: z.string().uuid() }))
+    .mutation(async ({ ctx, input }) => {
+      const e = carregarEmissor(process.env);
+      if (pendenciasParaCaptar(e).length > 0) {
+        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Resgates ainda não estão habilitados nesta plataforma." });
+      }
+      const c = await meuContrato(ctx.usuario.id, input.contratoId);
+      if (c.status !== "ativo") throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Só contratos ativos aceitam resgate." });
+
+      const [ja] = await db.select().from(resgatesRendimento).where(eq(resgatesRendimento.idempotencyKey, input.idempotencyKey)).limit(1);
+      if (ja) {
+        const irJa = irDoResgate(c, ja.valorCentavos);
+        return { ok: true as const, id: ja.id, previstoPara: ja.previstoPara, repetido: true, ...irJa, irCentavos: Number(ja.irRetidoCentavos), liquidoCentavos: ja.valorCentavos - Number(ja.irRetidoCentavos) };
+      }
+
+      const s = saldoDoContrato(c, await totalResgatado(c.id));
+      if (input.valorCentavos > s.disponivelCentavos) {
+        throw new TRPCError({ code: "BAD_REQUEST", message: `Valor acima do rendimento disponível (${formatarBRL(s.disponivelCentavos)}).` });
+      }
+      const ir = irDoResgate(c, input.valorCentavos);
+      const previsto = dataPagamentoResgate(new Date(), e.prazoResgateDias).toISOString().slice(0, 10);
+      const [novo] = await db
+        .insert(resgatesRendimento)
+        .values({
+          contratoId: c.id,
+          valorCentavos: input.valorCentavos,
+          irRetidoCentavos: ir.irCentavos,
+          previstoPara: previsto,
+          idempotencyKey: input.idempotencyKey,
+        })
+        .onConflictDoNothing()
+        .returning();
+      await auditar({ atorId: ctx.usuario.id, acao: "resgate_solicitado", entidade: "contrato", entidadeId: c.id, dados: { valor: input.valorCentavos }, ip: ctx.ip });
+      for (const para of ENV.emailsAssessores) {
+        void enviarEmail({
+          para,
+          assunto: `Pedido de resgate: contrato #${c.id}`,
+          html: `<p>${ctx.usuario.nome ?? ctx.usuario.email} pediu resgate de ${formatarBRL(input.valorCentavos)} do contrato #${c.id}. Previsto para ${new Date(previsto + "T12:00:00").toLocaleDateString("pt-BR")}.</p><p><a href="${ENV.appUrl}/admin/resgates">Abrir resgates</a></p>`,
+        });
+      }
+      return { ok: true as const, id: novo?.id ?? null, previstoPara: previsto, repetido: !novo, ...ir };
+    }),
+
+  resgates: investidorProcedure.query(async ({ ctx }) => {
+    const inv = await meuInvestidor(ctx.usuario.id);
+    return db
+      .select({
+        id: resgatesRendimento.id,
+        contratoId: resgatesRendimento.contratoId,
+        valorCentavos: resgatesRendimento.valorCentavos,
+        irRetidoCentavos: resgatesRendimento.irRetidoCentavos,
+        status: resgatesRendimento.status,
+        solicitadoEm: resgatesRendimento.solicitadoEm,
+        previstoPara: resgatesRendimento.previstoPara,
+        pagoEm: resgatesRendimento.pagoEm,
+        motivoRecusa: resgatesRendimento.motivoRecusa,
+      })
+      .from(resgatesRendimento)
+      .innerJoin(contratos, eq(resgatesRendimento.contratoId, contratos.id))
+      .where(eq(contratos.investidorId, inv.id))
+      .orderBy(desc(resgatesRendimento.solicitadoEm));
+  }),
+
+  // ─── Documentos ─────────────────────────────────────────────────────────────
+
   documentos: investidorProcedure.query(async ({ ctx }) => {
     const inv = await meuInvestidor(ctx.usuario.id);
-    const meusContratos = await db.select({ id: contratos.id }).from(contratos).where(eq(contratos.investidorId, inv.id));
-    const ids = meusContratos.map((c) => c.id);
+    const meus = await db.select({ id: contratos.id }).from(contratos).where(eq(contratos.investidorId, inv.id));
+    const ids = meus.map((c) => c.id);
     const linhas = await db
       .select({ id: documentos.id, titulo: documentos.titulo, tipo: documentos.tipo, escopo: documentos.escopo, publicadoEm: documentos.publicadoEm })
       .from(documentos)
@@ -121,7 +264,7 @@ export const investidorRouter = router({
         ),
       )
       .orderBy(desc(documentos.publicadoEm));
-    return { armazenamentoAtivo: r2Configurado(), documentos: linhas };
+    return { armazenamentoAtivo: r2Configurado(), documentos: linhas, contratos: ids };
   }),
 
   baixarDocumento: investidorProcedure.input(z.object({ id: z.number().int() })).mutation(async ({ ctx, input }) => {
@@ -145,8 +288,8 @@ export const investidorRouter = router({
   }),
 
   /**
-   * Manifestação de interesse em aporte. Só abre com trilha concluída e perfil
-   * adequado. Não movimenta dinheiro: avisa a equipe, que conduz o onboarding.
+   * Manifestação de interesse em aporte. Exige trilha, perfil adequado e
+   * cadastro completo. Não movimenta dinheiro: avisa a equipe.
    */
   manifestarInteresse: investidorProcedure.mutation(async ({ ctx }) => {
     const inv = await meuInvestidor(ctx.usuario.id);
@@ -156,6 +299,9 @@ export const investidorRouter = router({
     const r = (inv.suitabilityRespostas as { adequado?: boolean; motivo?: string } | null) ?? null;
     if (!r) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Responda o questionário de perfil primeiro." });
     if (!r.adequado) throw new TRPCError({ code: "PRECONDITION_FAILED", message: r.motivo ?? "Produto não adequado ao seu perfil." });
+    if (!(await getCadastro(inv.id))) {
+      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Complete seu cadastro primeiro. Ele é a base do contrato." });
+    }
 
     await db.update(investidores).set({ interesseAporteEm: new Date() }).where(eq(investidores.id, inv.id));
     await auditar({ atorId: ctx.usuario.id, acao: "interesse_aporte", entidade: "investidor", entidadeId: inv.id, ip: ctx.ip });
@@ -163,47 +309,9 @@ export const investidorRouter = router({
       void enviarEmail({
         para,
         assunto: `Interesse em aporte: ${ctx.usuario.nome ?? ctx.usuario.email}`,
-        html: `<p>${ctx.usuario.nome ?? ""} (${ctx.usuario.email}) concluiu a trilha, tem perfil adequado e quer conversar sobre aporte.</p>`,
+        html: `<p>${ctx.usuario.nome ?? ""} (${ctx.usuario.email}) concluiu trilha, perfil e cadastro, e quer conversar sobre aporte.</p><p><a href="${ENV.appUrl}/admin/investidores">Abrir investidores</a></p>`,
       });
     }
     return { ok: true as const };
   }),
-
-  /** Pedido de resgate de rendimento. Travado até o emissor estar habilitado. */
-  solicitarResgate: investidorProcedure
-    .input(z.object({ contratoId: z.number().int(), valorCentavos: z.number().int().positive(), idempotencyKey: z.string().uuid() }))
-    .mutation(async ({ ctx, input }) => {
-      const e = carregarEmissor(process.env);
-      if (pendenciasParaCaptar(e).length > 0) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Resgates ainda não estão habilitados nesta plataforma." });
-      }
-      const inv = await meuInvestidor(ctx.usuario.id);
-      const [c] = await db
-        .select()
-        .from(contratos)
-        .where(and(eq(contratos.id, input.contratoId), eq(contratos.investidorId, inv.id), eq(contratos.status, "ativo")))
-        .limit(1);
-      if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "Contrato ativo não encontrado." });
-
-      const [ja] = await db.select().from(resgatesRendimento).where(eq(resgatesRendimento.idempotencyKey, input.idempotencyKey)).limit(1);
-      if (ja) return { ok: true as const, id: ja.id, previstoPara: ja.previstoPara, repetido: true };
-
-      const [pago] = await db
-        .select({ total: sum(resgatesRendimento.valorCentavos) })
-        .from(resgatesRendimento)
-        .where(and(eq(resgatesRendimento.contratoId, c.id), inArray(resgatesRendimento.status, ["solicitado", "aprovado", "pago"])));
-      const acc = rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), diasEntre(c.inicio), Number(pago?.total ?? 0));
-      if (input.valorCentavos > acc.disponivelCentavos) {
-        throw new TRPCError({ code: "BAD_REQUEST", message: "Valor acima do rendimento disponível." });
-      }
-
-      const previsto = dataPagamentoResgate(new Date(), e.prazoResgateDias).toISOString().slice(0, 10);
-      const [novo] = await db
-        .insert(resgatesRendimento)
-        .values({ contratoId: c.id, valorCentavos: input.valorCentavos, previstoPara: previsto, idempotencyKey: input.idempotencyKey })
-        .onConflictDoNothing()
-        .returning();
-      await auditar({ atorId: ctx.usuario.id, acao: "resgate_solicitado", entidade: "contrato", entidadeId: c.id, dados: { valor: input.valorCentavos }, ip: ctx.ip });
-      return { ok: true as const, id: novo?.id ?? null, previstoPara: previsto, repetido: !novo };
-    }),
 });

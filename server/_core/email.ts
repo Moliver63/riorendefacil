@@ -109,3 +109,45 @@ export function emailLembreteTrilha(nome: string | null) {
     true,
   );
 }
+
+export function emailContratoGerado(p: { nome: string; contratoId: number; valor: string; taxa: string; prazo: number }) {
+  return envelope(
+    `
+    <h1 style="font-size:22px;font-weight:normal">${escapar(p.nome.split(" ")[0] ?? p.nome)}, seu contrato está pronto</h1>
+    <p>Geramos o contrato #${p.contratoId}: ${escapar(p.valor)}, ${escapar(p.taxa)} ao mês, prazo de ${p.prazo} meses.</p>
+    <p>Leia com calma. A assinatura e o aporte acontecem só depois, com o especialista.</p>
+    ${botao(`${ENV.appUrl}/contrato/${p.contratoId}`, "Ler o contrato")}
+  `,
+    true,
+  );
+}
+
+export function emailAporteConfirmado(p: { nome: string | null; valor: string; inicio: string; vencimento: string }) {
+  const d = (iso: string) => new Date(iso + "T12:00:00").toLocaleDateString("pt-BR");
+  return envelope(
+    `
+    <h1 style="font-size:22px;font-weight:normal">Seu investimento está ativo</h1>
+    <p>${p.nome ? `${escapar(p.nome.split(" ")[0]!)}, c` : "C"}onfirmamos o aporte de ${escapar(p.valor)} na conta vinculada do emissor.</p>
+    <p>O rendimento conta desde ${d(p.inicio)}. O principal fica disponível no vencimento, em ${d(p.vencimento)}.</p>
+    ${botao(`${ENV.appUrl}/painel`, "Ver minha carteira")}
+  `,
+    true,
+  );
+}
+
+export function emailResgatePago(p: { nome: string | null; bruto: string; ir: string; liquido: string }) {
+  return envelope(`
+    <h1 style="font-size:22px;font-weight:normal">Resgate pago</h1>
+    <p>${p.nome ? `${escapar(p.nome.split(" ")[0]!)}, o` : "O"} resgate de rendimento foi transferido para sua conta cadastrada.</p>
+    <p>Bruto: ${escapar(p.bruto)}<br>IR retido: ${escapar(p.ir)}<br><strong>Líquido: ${escapar(p.liquido)}</strong></p>
+    ${botao(`${ENV.appUrl}/painel`, "Ver extrato")}
+  `);
+}
+
+export function emailResgateRecusado(p: { nome: string | null; motivo: string }) {
+  return envelope(`
+    <h1 style="font-size:22px;font-weight:normal">Pedido de resgate não aprovado</h1>
+    <p>${p.nome ? `${escapar(p.nome.split(" ")[0]!)}, s` : "S"}eu pedido de resgate não foi aprovado. Motivo: ${escapar(p.motivo)}</p>
+    <p>O valor continua disponível na sua carteira. Se tiver dúvida, responda este e-mail.</p>
+  `);
+}
