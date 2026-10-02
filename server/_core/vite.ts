@@ -8,7 +8,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
-import { htmlComMeta } from "../routes/seo";
+import { htmlComMeta } from "./seo";
 
 const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 

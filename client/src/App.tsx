@@ -1,30 +1,36 @@
 import { lazy, Suspense, useEffect } from "react";
 import { Route, Switch, useLocation } from "wouter";
-import Home from "./routes/Home";
-import Conteudo from "./routes/Conteudo";
-import Artigo from "./routes/Artigo";
-import Entrar from "./routes/Entrar";
-import NaoEncontrado from "./routes/NaoEncontrado";
-import { Protegida } from "./components/Protegida";
-import { Consentimento } from "./components/Consentimento";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { trpc, trpcClient, queryClient } from "@/lib/trpc";
+import ProtectedRoute from "@/components/shared/ProtectedRoute";
+import CookieConsent from "@/components/shared/CookieConsent";
+import ErrorBoundary from "@/components/shared/ErrorBoundary";
 
-// Área logada e admin carregados sob demanda (padrão Caro): quem só visita
-// o site nunca baixa esse código.
-const Painel = lazy(() => import("./routes/investidor/Painel"));
-const Trilha = lazy(() => import("./routes/investidor/Trilha"));
-const Modulo = lazy(() => import("./routes/investidor/Modulo"));
-const Perfil = lazy(() => import("./routes/investidor/Perfil"));
-const Documentos = lazy(() => import("./routes/investidor/Documentos"));
-const AdminInicio = lazy(() => import("./routes/admin/AdminInicio"));
-const AdminLeads = lazy(() => import("./routes/admin/AdminLeads"));
-const AdminOfertas = lazy(() => import("./routes/admin/AdminOfertas"));
-const AdminComunicacao = lazy(() => import("./routes/admin/AdminComunicacao"));
-const AdminUsuarios = lazy(() => import("./routes/admin/AdminUsuarios"));
-const AdminAuditoria = lazy(() => import("./routes/admin/AdminAuditoria"));
+// Pages - Public (no bundle inicial)
+import Landing from "@/pages/Landing";
+import Conteudo from "@/pages/Conteudo";
+import Artigo from "@/pages/Artigo";
+import Login from "@/pages/Login";
+import NotFound from "@/pages/NotFound";
 
-function Carregando() {
-  return <div className="carregando-tela">Carregando…</div>;
-}
+// Pages - Investidor (carregadas sob demanda)
+const Painel = lazy(() => import("@/pages/Painel"));
+const Trilha = lazy(() => import("@/pages/Trilha"));
+const TrilhaModulo = lazy(() => import("@/pages/TrilhaModulo"));
+const Perfil = lazy(() => import("@/pages/Perfil"));
+const Documentos = lazy(() => import("@/pages/Documentos"));
+
+// Pages - Equipe e Admin (carregadas sob demanda)
+const AdminDashboard = lazy(() => import("@/pages/AdminDashboard"));
+const AdminLeads = lazy(() => import("@/pages/AdminLeads"));
+const AdminComunicacao = lazy(() => import("@/pages/AdminComunicacao"));
+const AdminOfertas = lazy(() => import("@/pages/AdminOfertas"));
+const AdminUsuarios = lazy(() => import("@/pages/AdminUsuarios"));
+const AdminAuditoria = lazy(() => import("@/pages/AdminAuditoria"));
+
+const INVESTIDOR = ["investidor"] as const;
+const EQUIPE = ["assessor", "admin"] as const;
+const ADMIN = ["admin"] as const;
 
 function RolarAoTopo() {
   const [loc] = useLocation();
@@ -34,34 +40,50 @@ function RolarAoTopo() {
   return null;
 }
 
+/** Todas as rotas do site. O mapa completo, com as APIs, está em docs/ROTAS.md. */
+function Rotas() {
+  return (
+    <Switch>
+      {/* ── Público ── */}
+      <Route path="/" component={Landing} />
+      <Route path="/conteudo" component={Conteudo} />
+      <Route path="/conteudo/:slug" component={Artigo} />
+      <Route path="/entrar" component={Login} />
+
+      {/* ── Investidor ── */}
+      <Route path="/painel">{() => <ProtectedRoute roles={[...INVESTIDOR]}><Painel /></ProtectedRoute>}</Route>
+      <Route path="/trilha">{() => <ProtectedRoute roles={[...INVESTIDOR]}><Trilha /></ProtectedRoute>}</Route>
+      <Route path="/trilha/:slug">{(p) => <ProtectedRoute roles={[...INVESTIDOR]}><TrilhaModulo slug={p.slug} /></ProtectedRoute>}</Route>
+      <Route path="/perfil">{() => <ProtectedRoute roles={[...INVESTIDOR]}><Perfil /></ProtectedRoute>}</Route>
+      <Route path="/documentos">{() => <ProtectedRoute roles={[...INVESTIDOR]}><Documentos /></ProtectedRoute>}</Route>
+
+      {/* ── Equipe (assessor e admin) ── */}
+      <Route path="/admin">{() => <ProtectedRoute roles={[...EQUIPE]}><AdminDashboard /></ProtectedRoute>}</Route>
+      <Route path="/admin/leads">{() => <ProtectedRoute roles={[...EQUIPE]}><AdminLeads /></ProtectedRoute>}</Route>
+      <Route path="/admin/comunicacao">{() => <ProtectedRoute roles={[...EQUIPE]}><AdminComunicacao /></ProtectedRoute>}</Route>
+
+      {/* ── Só admin ── */}
+      <Route path="/admin/ofertas">{() => <ProtectedRoute roles={[...ADMIN]}><AdminOfertas /></ProtectedRoute>}</Route>
+      <Route path="/admin/usuarios">{() => <ProtectedRoute roles={[...ADMIN]}><AdminUsuarios /></ProtectedRoute>}</Route>
+      <Route path="/admin/auditoria">{() => <ProtectedRoute roles={[...ADMIN]}><AdminAuditoria /></ProtectedRoute>}</Route>
+
+      <Route component={NotFound} />
+    </Switch>
+  );
+}
+
 export default function App() {
   return (
-    <>
-      <RolarAoTopo />
-      <Suspense fallback={<Carregando />}>
-        <Switch>
-          <Route path="/" component={Home} />
-          <Route path="/conteudo" component={Conteudo} />
-          <Route path="/conteudo/:slug" component={Artigo} />
-          <Route path="/entrar" component={Entrar} />
-
-          <Route path="/painel">{() => <Protegida papeis={["investidor"]}><Painel /></Protegida>}</Route>
-          <Route path="/trilha">{() => <Protegida papeis={["investidor"]}><Trilha /></Protegida>}</Route>
-          <Route path="/trilha/:slug">{(p) => <Protegida papeis={["investidor"]}><Modulo slug={p.slug} /></Protegida>}</Route>
-          <Route path="/perfil">{() => <Protegida papeis={["investidor"]}><Perfil /></Protegida>}</Route>
-          <Route path="/documentos">{() => <Protegida papeis={["investidor"]}><Documentos /></Protegida>}</Route>
-
-          <Route path="/admin">{() => <Protegida papeis={["assessor", "admin"]}><AdminInicio /></Protegida>}</Route>
-          <Route path="/admin/leads">{() => <Protegida papeis={["assessor", "admin"]}><AdminLeads /></Protegida>}</Route>
-          <Route path="/admin/comunicacao">{() => <Protegida papeis={["assessor", "admin"]}><AdminComunicacao /></Protegida>}</Route>
-          <Route path="/admin/ofertas">{() => <Protegida papeis={["admin"]}><AdminOfertas /></Protegida>}</Route>
-          <Route path="/admin/usuarios">{() => <Protegida papeis={["admin"]}><AdminUsuarios /></Protegida>}</Route>
-          <Route path="/admin/auditoria">{() => <Protegida papeis={["admin"]}><AdminAuditoria /></Protegida>}</Route>
-
-          <Route component={NaoEncontrado} />
-        </Switch>
-      </Suspense>
-      <Consentimento />
-    </>
+    <trpc.Provider client={trpcClient} queryClient={queryClient}>
+      <QueryClientProvider client={queryClient}>
+        <ErrorBoundary context="app">
+          <RolarAoTopo />
+          <Suspense fallback={<div className="carregando-tela">Carregando…</div>}>
+            <Rotas />
+          </Suspense>
+          <CookieConsent />
+        </ErrorBoundary>
+      </QueryClientProvider>
+    </trpc.Provider>
   );
 }

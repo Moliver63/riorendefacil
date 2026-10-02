@@ -36,6 +36,18 @@ Ler este arquivo e os demais de `docs/` no início de toda sessão de trabalho.
 - `shadiahasan` (público): arquivo com URL do Postgres e senha, arquivo com chave JWT, relatórios de env com segredos; sessão aceita cookie JSON sem assinatura (permite se passar por admin).
 - `mecpro` (público): URLs de banco com senha em scripts Python; `chave.txt` a conferir.
 
+## Sessão 03 · 02/10/2026 · estrutura no formato do MecProAI
+
+Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tudo já era TypeScript; a mudança foi de organização, sem alterar lógica.
+
+- Servidor: `server/_core/router.ts` como appRouter; sub-routers em `_core/*Router.ts`; `schema.ts`, `db.ts` (com getUserById, getUserByEmail, getOrCreateInvestidor, getOfertaAtiva), `storage.ts`, `auditoria.ts`, `contas.ts`, `logger.ts` direto em `server/`.
+- REST novo: `GET /api/auth/me`, `POST /api/auth/logout`, `POST /api/client-error` (20/min). `.map` sempre 404.
+- Cliente: `pages/` sem subpastas, `components/{layout,landing,shared}`, `hooks/useAuth.ts` (REST), `lib/trpc.ts` exporta trpc, trpcClient e queryClient; providers no `App.tsx`; `ErrorBoundary` reporta ao servidor; aliases `@/` e `~shared/`.
+- Tailwind 3 com as cores da marca (preflight desligado para não conflitar com `index.css`). Build com sourcemap hidden e chunks vendor-react e vendor-trpc.
+- `tsconfig.server.json` + `npm run check:server`; scripts `test:finance`, `test:compliance`, `test:integracao`.
+- `docs/ROTAS.md` com todas as páginas, REST e procedures.
+- Verificado: 35 testes, tipos de cliente e servidor, build, e navegador passando por todas as páginas como visitante, investidor e admin.
+
 ## Pendências
 
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.

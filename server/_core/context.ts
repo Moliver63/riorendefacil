@@ -1,7 +1,6 @@
 import type { CreateExpressContextOptions } from "@trpc/server/adapters/express";
-import { eq } from "drizzle-orm";
-import { db } from "../db";
-import { usuarios, type Usuario } from "../../shared/schema";
+import { getUserById } from "../db";
+import type { Usuario } from "../schema";
 import { COOKIE_SESSAO } from "../../shared/const";
 import { lerSessao } from "./sessao";
 
@@ -15,7 +14,7 @@ export type TrpcContext = {
 export async function usuarioDaRequisicao(req: CreateExpressContextOptions["req"]): Promise<Usuario | null> {
   const sessao = await lerSessao(req.cookies?.[COOKIE_SESSAO]);
   if (!sessao) return null;
-  const [u] = await db.select().from(usuarios).where(eq(usuarios.id, sessao.sub)).limit(1);
+  const u = await getUserById(sessao.sub);
   // versão diferente = sessão revogada (logout em todos os dispositivos, troca de papel)
   if (!u || !u.ativo || u.versaoSessao !== sessao.v) return null;
   return u;

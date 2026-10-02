@@ -25,7 +25,8 @@ Para entrar como admin no ambiente local: coloque seu e-mail em `ADMIN_EMAILS` n
 
 ## Documentação
 
-- `docs/ARQUITETURA.md`: estrutura, fluxo do investidor e de onde veio cada padrão (Caro, Shadia, MecProAI)
+- `docs/ARQUITETURA.md`: estrutura no formato do MecProAI e fluxo do investidor
+- `docs/ROTAS.md`: todas as rotas (páginas, REST e tRPC) e como adicionar novas
 - `docs/SEGURANCA.md`: sessão, login, dados e lições dos outros projetos
 - `docs/COMPLIANCE.md`: checklist antes de captar e perguntas para o advogado
 - `docs/FRAMEWORK_EXCELENCIA.md`: regras de código e comunicação

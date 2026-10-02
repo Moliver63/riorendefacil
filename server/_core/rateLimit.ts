@@ -17,6 +17,7 @@ function limite(janelaMs: number, max: number, mensagem: string): RequestHandler
 export const limiteApi = limite(60_000, 150, "Muitas requisições. Aguarde um momento.");
 export const limiteLogin = limite(15 * 60_000, 6, "Muitas tentativas de acesso. Tente de novo em 15 minutos.");
 export const limiteFormulario = limite(60 * 60_000, 6, "Muitos envios. Tente de novo em 1 hora.");
+export const limiteErroCliente = limite(60_000, 20, "Muitos relatórios de erro.");
 
 /** Aplica limite apenas a procedures tRPC específicas (o tRPC usa um único endpoint). */
 export function limitePorProcedure(mapa: Record<string, RequestHandler>): RequestHandler {

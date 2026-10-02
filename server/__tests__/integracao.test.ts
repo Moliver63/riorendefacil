@@ -7,17 +7,17 @@ import assert from "node:assert/strict";
 import type { AddressInfo } from "node:net";
 import { eq } from "drizzle-orm";
 import { db, aplicarMigracoes } from "../db";
-import { appRouter } from "../routers";
+import { appRouter } from "../_core/router";
 import { createCallerFactory } from "../_core/trpc";
 import type { TrpcContext } from "../_core/context";
 import { assinarSessao, lerSessao } from "../_core/sessao";
 import { criarApp } from "../_core/index";
-import { caixaDeSaidaTeste } from "../lib/email";
-import { consumirLinkAcesso, criarLinkAcesso } from "../auth/link";
-import { encontrarOuCriarUsuario } from "../auth/contas";
-import { executarLembretes } from "../routes/cron";
-import { htmlComMeta } from "../routes/seo";
-import { investidores, leads, linksAcesso, usuarios, type Usuario } from "../../shared/schema";
+import { caixaDeSaidaTeste } from "../_core/email";
+import { consumirLinkAcesso, criarLinkAcesso } from "../_core/linkAcesso";
+import { encontrarOuCriarUsuario } from "../contas";
+import { executarLembretes } from "../_core/cronRouter";
+import { htmlComMeta } from "../_core/seo";
+import { investidores, leads, linksAcesso, usuarios, type Usuario } from "../schema";
 import { TRILHA } from "../../shared/trilha";
 import { ARTIGOS } from "../../shared/conteudo";
 import { avaliarTexto } from "../../shared/complianceGuard";
@@ -250,9 +250,13 @@ test("HTTP: link mágico grava cookie e o cookie forjado da Shadia é ignorado",
 
     const eu = async (c: string) => {
       const resp = await fetch(`${base}/api/trpc/auth.eu`, { headers: { cookie: c } });
-      return (await resp.json()).result.data.json;
+      return ((await resp.json()) as { result: { data: { json: { email: string } | null } } }).result.data.json;
     };
-    assert.equal((await eu(cookie.split(";")[0]!)).email, "http@exemplo.com");
+    assert.equal((await eu(cookie.split(";")[0]!))?.email, "http@exemplo.com");
+    const me = (await (await fetch(`${base}/api/auth/me`, { headers: { cookie: cookie.split(";")[0]! } })).json()) as { email: string } | null;
+    assert.equal(me?.email, "http@exemplo.com", "REST /api/auth/me lê a mesma sessão");
+    assert.equal(await (await fetch(`${base}/api/auth/me`)).json(), null);
+    assert.equal((await fetch(`${base}/assets/x.js.map`)).status, 404);
 
     // ataque que funciona na Shadia: cookie JSON sem assinatura
     const [alvo] = await db.select().from(usuarios).where(eq(usuarios.email, "http@exemplo.com"));

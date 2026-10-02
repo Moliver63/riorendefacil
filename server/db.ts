@@ -13,7 +13,8 @@ import { drizzle as drizzleLite } from "drizzle-orm/pglite";
 import { migrate as migrateLite } from "drizzle-orm/pglite/migrator";
 import { PGlite } from "@electric-sql/pglite";
 import pg from "pg";
-import * as schema from "../shared/schema";
+import { desc, eq } from "drizzle-orm";
+import * as schema from "./schema";
 import { ENV } from "./_core/env";
 
 const pastaMigracoes = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../drizzle");
@@ -65,4 +66,32 @@ export function aplicarMigracoes(): Promise<void> {
     });
   }
   return migrado;
+}
+
+// ─── Funções de acesso a dados (padrão MecProAI: named exports em db.ts) ────
+// Consultas usadas em mais de um lugar ficam aqui. Consultas específicas de um
+// router podem ficar no próprio router.
+
+export async function getUserById(id: number) {
+  const [u] = await db.select().from(schema.usuarios).where(eq(schema.usuarios.id, id)).limit(1);
+  return u ?? null;
+}
+
+export async function getUserByEmail(email: string) {
+  const [u] = await db.select().from(schema.usuarios).where(eq(schema.usuarios.email, email.trim().toLowerCase())).limit(1);
+  return u ?? null;
+}
+
+/** Cadastro de investidor do usuário; cria se ainda não existir. */
+export async function getOrCreateInvestidor(usuarioId: number) {
+  const [inv] = await db.select().from(schema.investidores).where(eq(schema.investidores.usuarioId, usuarioId)).limit(1);
+  if (inv) return inv;
+  await db.insert(schema.investidores).values({ usuarioId }).onConflictDoNothing();
+  const [criado] = await db.select().from(schema.investidores).where(eq(schema.investidores.usuarioId, usuarioId)).limit(1);
+  return criado!;
+}
+
+export async function getOfertaAtiva() {
+  const [o] = await db.select().from(schema.ofertas).where(eq(schema.ofertas.ativa, true)).orderBy(desc(schema.ofertas.criadoEm)).limit(1);
+  return o ?? null;
 }

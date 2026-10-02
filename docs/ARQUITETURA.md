@@ -1,52 +1,67 @@
 # Arquitetura · RioRendeFácil
 
-Monólito Node + React, uma porta só, no mesmo formato dos outros projetos do Lab Quântico. Cada peça indica de onde veio o padrão.
+Monólito Node + React em TypeScript, uma porta só, organizado no mesmo formato do MecProAI. Padrões da Caro e da Shadia aparecem onde fazem sentido (cron, e-mail, SEO, papéis, trilha).
 
 ```
-client/                     React 18 + Vite + wouter
-  index.html                <!--meta--> recebe as tags do servidor (SEO para bots)
-  public/                   favicon, og.png
+client/                         React 18 + Vite + wouter + Tailwind (mesmo formato do MecProAI)
+  index.html                    <!--meta--> recebe as tags do servidor (SEO para bots)
+  public/                       favicon
   src/
-    main.tsx                tRPC + superjson, sem retry em 4xx            ← Caro
-    App.tsx                 rotas; área logada e admin com lazy()         ← Caro
-    lib/                    trpc, analytics com consentimento, seo
-    components/             Layout (público), AreaLogada, Protegida, Simulador, FormContato, Consentimento
-    routes/                 Home, Conteudo, Artigo, Entrar, NaoEncontrado
-      investidor/           Painel, Trilha, Modulo, Perfil, Documentos
-      admin/                AdminInicio, AdminLeads, AdminOfertas, AdminComunicacao, AdminUsuarios, AdminAuditoria
-    styles/globals.css      tokens de cor e tipografia + componentes
+    main.tsx                    só monta o <App />
+    App.tsx                     providers (tRPC, React Query), ErrorBoundary e TODAS as rotas
+    index.css                   @tailwind + tokens de cor e componentes base
+    lib/trpc.ts                 trpc, trpcClient e queryClient
+    lib/analytics.ts            GA4, Pixel e Clarity só com consentimento
+    hooks/useAuth.ts            sessão via GET /api/auth/me
+    components/
+      SEO.tsx                   título e meta em navegação SPA
+      layout/Layout.tsx         moldura da área logada (investidor e equipe)
+      landing/                  SiteLayout (topo, rodapé, selo do emissor), Simulador, FormContato
+      shared/                   ProtectedRoute, ErrorBoundary, CookieConsent
+    pages/                      uma página por arquivo, sem subpastas
+      Landing, Conteudo, Artigo, Login, NotFound
+      Painel, Trilha, TrilhaModulo, Perfil, Documentos
+      AdminDashboard, AdminLeads, AdminComunicacao, AdminOfertas, AdminUsuarios, AdminAuditoria
 
 server/
   _core/
-    index.ts                Express: segurança, cookies, JSON, rotas, tRPC  ← Caro (estrutura) + MecProAI (parser antes das rotas)
-    env.ts                  falha no boot se faltar segredo em produção   ← correção da Shadia
-    sessao.ts               JWT HS256 (jose) em cookie httpOnly           ← MecProAI
-    context.ts              carrega usuário e confere versaoSessao
-    trpc.ts                 public / protected / comPapel / equipe / admin ← Shadia
-    rateLimit.ts            limites por rota e por procedure              ← Shadia
-    security.ts             HSTS, CSP, nosniff, frame-ancestors
-    vite.ts                 Vite como middleware em dev, estático em prod ← Caro
-  auth/                     link mágico (link.ts), Google OAuth (google.ts), regras de conta
-  routers/                  auth, plataforma+simulador, leads, trilha, investidor, admin
-  routes/                   cron.ts (lembretes) ← Caro; seo.ts (sitemap, robots, meta) ← Caro
-  lib/                      email (Resend, melhor esforço) ← Caro; storage (R2, URL assinada) ← Shadia; auditoria
-  db.ts                     pg no Render (ajuste de SSL da Caro) ou PGlite em dev/teste
-  __tests__/                integração com banco real em memória e HTTP
+    index.ts                    Express: segurança, cookies, JSON, REST, tRPC, Vite/estático
+    router.ts                   appRouter: junta todos os *Router.ts
+    trpc.ts                     publicProcedure, protectedProcedure, comPapel, equipe, admin
+    context.ts                  usuário da sessão (JWT + versaoSessao)
+    env.ts                      variáveis; falha no boot se faltar segredo em produção
+    sessao.ts                   assinar e ler JWT (jose), cookie httpOnly
+    authRouter.ts               procedures de login
+    plataformaRouter.ts         status, lastro, simulador
+    leadsRouter.ts              captação
+    trilhaRouter.ts             trilha educativa
+    investidorRouter.ts         perfil, suitability, painel, documentos, interesse, resgate
+    adminRouter.ts              funil, leads, ofertas, CCBs, documentos, comunicação, usuários, auditoria
+    authRoutes.ts               REST: /api/auth/me e /api/auth/logout
+    linkAcesso.ts               REST: link mágico
+    oauthGoogle.ts              REST: login com Google
+    cronRouter.ts               REST: lembretes
+    seo.ts                      sitemap, robots, meta tags por rota
+    email.ts                    Resend e modelos de e-mail
+    rateLimit.ts, security.ts, vite.ts
+  schema.ts                     tabelas Drizzle
+  db.ts                         conexão (pg ou PGlite), migrações e funções getUserById, getOrCreateInvestidor...
+  contas.ts                     encontrar ou criar usuário
+  storage.ts                    Cloudflare R2 com URL assinada
+  auditoria.ts                  trilha de auditoria
+  logger.ts                     log.info / log.error (JSON em produção)
+  __tests__/                    integração com banco real em memória e HTTP
 
-shared/                     usado por cliente e servidor
-  schema.ts                 tabelas Drizzle                               ← Caro
-  const.ts                  papéis, status, mensagens
-  finance.ts                juros, IR, simulação (puro, testado)
-  complianceGuard.ts        revisor de comunicação                        ← Fact Guard do MecProAI
-  issuer.ts                 emissor parceiro e checklist de captação
-  trilha.ts                 módulos, quiz e liberação em ordem            ← learning path da Shadia
-  suitability.ts            questionário de perfil
-  conteudo.ts               artigos públicos
-  mercado.ts, exemplo.ts    referências de mercado e lastro de exemplo
+shared/                         usado por cliente e servidor
+  const.ts, finance.ts, complianceGuard.ts, issuer.ts, trilha.ts, suitability.ts, conteudo.ts, mercado.ts, exemplo.ts
 
-drizzle/                    SQL gerado por `npm run db:generate`, aplicado no boot
-render.yaml                 web + cron                                    ← MecProAI
+drizzle/                        SQL gerado por `npm run db:generate`, aplicado no boot
+render.yaml                     web + Postgres + cron
+tsconfig.json                   aliases @/ (client/src) e ~shared/ (shared)
+tsconfig.server.json            checagem só do servidor (npm run check:server)
 ```
+
+O mapa de todas as rotas (páginas, REST e tRPC) está em `docs/ROTAS.md`.
 
 ## Fluxo do investidor
 
@@ -72,7 +87,7 @@ render.yaml                 web + cron                                    ← Me
 cp .env.example .env
 npm install
 npm run dev      # http://localhost:3000, banco PGlite em .data/ (sem instalar Postgres)
-npm test         # 35 testes
+npm test         # 35 testes (npm run test:finance, test:compliance, test:integracao)
 npm run check
 ```
 
