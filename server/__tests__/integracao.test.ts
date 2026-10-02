@@ -273,3 +273,11 @@ test("HTTP: link mágico grava cookie e o cookie forjado da Shadia é ignorado",
     server.close();
   }
 });
+
+test("raiz do projeto é a mesma no fonte e no pacote dist/", async () => {
+  const path = await import("node:path");
+  const { raizDoProjeto } = await import("../_core/raiz");
+  const r = raizDoProjeto();
+  assert.equal(raizDoProjeto(path.join(r, "server/_core")), r);
+  assert.equal(raizDoProjeto(path.join(r, "dist")), r);
+});

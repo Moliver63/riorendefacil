@@ -6,7 +6,6 @@
  * Em produção, DATABASE_URL é obrigatória.
  */
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { migrate as migratePg } from "drizzle-orm/node-postgres/migrator";
 import { drizzle as drizzleLite } from "drizzle-orm/pglite";
@@ -16,8 +15,9 @@ import pg from "pg";
 import { desc, eq } from "drizzle-orm";
 import * as schema from "./schema";
 import { ENV } from "./_core/env";
+import { raizDoProjeto } from "./_core/raiz";
 
-const pastaMigracoes = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../drizzle");
+const pastaMigracoes = path.join(raizDoProjeto(), "drizzle");
 
 /** Remove sslmode da URL: o driver trata require como verify-full e rejeita o certificado do Render. */
 function urlSemSslMode(url: string): string {

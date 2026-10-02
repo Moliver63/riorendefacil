@@ -6,11 +6,11 @@
 import express, { type Express } from "express";
 import fs from "node:fs";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import type { Server } from "node:http";
 import { htmlComMeta } from "./seo";
+import { raizDoProjeto } from "./raiz";
 
-const raiz = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+const raiz = raizDoProjeto();
 
 const ehNavegacao = (url: string) =>
   !url.startsWith("/api/") && !url.startsWith("/@") && !url.startsWith("/node_modules/") && !/\.[a-z0-9]+(\?|$)/i.test(url);
@@ -47,7 +47,7 @@ export function serveStatic(app: Express) {
   app.use("/assets", express.static(path.join(dist, "assets"), { immutable: true, maxAge: "1y" }));
   app.use(express.static(dist, { index: false, maxAge: "1h" }));
   app.use((req, res, next) => {
-    if (req.method !== "GET" || !ehNavegacao(req.originalUrl)) return next();
+    if ((req.method !== "GET" && req.method !== "HEAD") || !ehNavegacao(req.originalUrl)) return next();
     res.status(200).type("html").set("Cache-Control", "no-cache").end(htmlComMeta(template, req.originalUrl));
   });
 }
