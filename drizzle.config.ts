@@ -1,10 +1,9 @@
 import type { Config } from "drizzle-kit";
 
-// Use apenas `drizzle-kit generate` para gerar SQL e revisar.
-// Nunca `drizzle-kit push` contra produção.
+// Gera SQL de migração a partir de shared/schema.ts (sem precisar de banco).
+// O servidor aplica as migrações no boot. NUNCA usar `drizzle-kit push`.
 export default {
-  schema: "./server/schema.ts",
-  out: "./migrations",
+  schema: "./shared/schema.ts",
+  out: "./drizzle",
   dialect: "postgresql",
-  dbCredentials: { url: process.env.DATABASE_URL ?? "" },
 } satisfies Config;
