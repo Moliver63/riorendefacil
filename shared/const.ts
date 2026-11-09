@@ -1,6 +1,6 @@
 /** Constantes compartilhadas entre cliente e servidor. */
 
-export const NOME_MARCA = "RioRendeFácil";
+export const NOME_MARCA = "CCB Rio Bank";
 
 export const COOKIE_SESSAO = "rrf_sessao";
 export const COOKIE_OAUTH_STATE = "rrf_oauth_state";

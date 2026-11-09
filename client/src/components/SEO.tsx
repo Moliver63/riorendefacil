@@ -6,7 +6,7 @@ import { useEffect } from "react";
  */
 export function Seo({ titulo, descricao, indexar = true }: { titulo: string; descricao?: string; indexar?: boolean }) {
   useEffect(() => {
-    document.title = titulo.includes("RioRendeFácil") ? titulo : `${titulo} · RioRendeFácil`;
+    document.title = titulo.includes("CCB Rio Bank") ? titulo : `${titulo} · CCB Rio Bank`;
     const meta = (nome: string, valor: string) => {
       let tag = document.querySelector(`meta[name="${nome}"]`);
       if (!tag) {

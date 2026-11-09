@@ -3,16 +3,25 @@ import { trpc } from "@/lib/trpc";
 import { inicioDoPapel, useAuth } from "@/hooks/useAuth";
 import { AVISO_RISCO } from "~shared/complianceGuard";
 
+/** Selo da marca: quadrado marinho com três barras douradas em degrau (rendimento que cresce). */
+export function SeloMarca({ tamanho = 30 }: { tamanho?: number }) {
+  return (
+    <svg width={tamanho} height={tamanho} viewBox="0 0 30 30" aria-hidden="true">
+      <rect width="30" height="30" rx="8" fill="var(--tinta)" />
+      <rect x="0.75" y="0.75" width="28.5" height="28.5" rx="7.25" fill="none" stroke="var(--cobre)" strokeOpacity="0.55" strokeWidth="1.5" />
+      <rect x="8" y="16" width="3.4" height="7" rx="1" fill="var(--cobre)" />
+      <rect x="13.3" y="12" width="3.4" height="11" rx="1" fill="var(--cobre)" />
+      <rect x="18.6" y="7" width="3.4" height="16" rx="1" fill="var(--cobre)" />
+    </svg>
+  );
+}
+
 export function Marca({ claro = false }: { claro?: boolean }) {
   return (
-    <Link href="/" className={`marca ${claro ? "marca--claro" : ""}`} aria-label="RioRendeFácil, início">
-      <svg width="28" height="28" viewBox="0 0 28 28" aria-hidden="true">
-        <rect width="28" height="28" rx="7" fill="currentColor" opacity="0.12" />
-        <path d="M4 17c3-3 6-3 9 0s6 3 11-2" stroke="currentColor" strokeWidth="2.2" fill="none" strokeLinecap="round" />
-        <path d="M4 11c3-3 6-3 9 0s6 3 11-2" stroke="var(--cobre)" strokeWidth="2.2" fill="none" strokeLinecap="round" />
-      </svg>
+    <Link href="/" className={`marca ${claro ? "marca--claro" : ""}`} aria-label="CCB Rio Bank, início">
+      <SeloMarca />
       <span>
-        RioRende<em>Fácil</em>
+        <span className="marca__ccb">CCB</span>Rio <em>Bank</em>
       </span>
     </Link>
   );
@@ -81,7 +90,7 @@ export function Rodape() {
         <div className="rodape__col">
           <Marca claro />
           <p>
-            O RioRendeFácil é uma plataforma de tecnologia. Não é banco, corretora nem emissor. A oferta e as garantias
+            Apesar do nome, o CCB Rio Bank não é banco, corretora nem emissor: é uma plataforma de tecnologia. A oferta e as garantias
             são estruturadas pelo emissor parceiro, e os recursos transitam apenas por conta vinculada.
           </p>
         </div>

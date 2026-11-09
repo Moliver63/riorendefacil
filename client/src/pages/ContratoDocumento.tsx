@@ -2,7 +2,8 @@ import { Link } from "wouter";
 import { Marca } from "@/components/landing/SiteLayout";
 import { Seo } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
-import { formatarBRL, formatarPct, taxaAnualEquivalente } from "~shared/finance";
+import { formatarPct, taxaAnualEquivalente } from "~shared/finance";
+import { formatarMoeda, MOEDA_ROTULO } from "~shared/moeda";
 import { RESGATE_ANTECIPADO } from "~shared/lastroGraos";
 import { AVISO_RISCO } from "~shared/complianceGuard";
 
@@ -86,7 +87,7 @@ export default function ContratoDocumento({ id }: { id: number }) {
             {c.emissor.custodiante ? ` administrada por ${c.emissor.custodiante}` : ""}.
           </p>
           <p>
-            <strong>Plataforma:</strong> RioRendeFácil, fornecedora de tecnologia. Não recebe, não guarda e não movimenta recursos do investidor.
+            <strong>Plataforma:</strong> CCB Rio Bank, fornecedora de tecnologia. Não recebe, não guarda e não movimenta recursos do investidor.
           </p>
         </section>
 
@@ -95,7 +96,9 @@ export default function ContratoDocumento({ id }: { id: number }) {
           <table className="doc__tabela">
             <tbody>
               <tr><th>Oferta</th><td>{c.oferta}</td></tr>
-              <tr><th>Valor aportado</th><td className="num">{formatarBRL(c.principalCentavos)}</td></tr>
+              {c.numeroCcb && <tr><th>CCB</th><td>{c.numeroCcb}</td></tr>}
+              <tr><th>Moeda</th><td>{MOEDA_ROTULO[c.moeda]}</td></tr>
+              <tr><th>Valor aportado</th><td className="num">{formatarMoeda(c.principalCentavos, c.moeda)}</td></tr>
               <tr><th>Remuneração</th><td className="num">{formatarPct(c.taxaMensal)} ao mês nominal, juros creditados por dia e capitalizados ({formatarPct(taxaAnualEquivalente(c.taxaMensal))} ao ano efetivo)</td></tr>
               <tr><th>Prazo</th><td>{c.prazoMeses} meses{c.inicio ? `, de ${data(c.inicio)} a ${data(c.vencimento)}` : ", contados da confirmação do aporte"}</td></tr>
               <tr><th>Principal</th><td>devolvido no vencimento, com a recompra dos títulos pela Rio</td></tr>

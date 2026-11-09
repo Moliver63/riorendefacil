@@ -28,6 +28,8 @@ services:
         sync: false
       - key: EMISSOR_AUTORIZADO
         value: "false"
+      - key: MODO_CONSULTA
+        value: "false"
 
   # Lembretes: leads parados e trilha abandonada. Chama o próprio web service.
   - type: cron

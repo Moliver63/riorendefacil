@@ -1,5 +1,5 @@
 /**
- * Núcleo financeiro do RioRendeFácil.
+ * Núcleo financeiro do CCB Rio Bank.
  *
  * Regras de cálculo (todas puras, sem I/O, testadas em finance.test.ts):
  * - Valores monetários trabalham em centavos (inteiros) na borda, e em número

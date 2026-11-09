@@ -22,8 +22,8 @@ test("bloqueia FGC indevido", () => {
   assert.equal(avaliarTexto("Seu dinheiro coberto pelo FGC").aprovado, false);
 });
 
-test("nome da marca não dispara a regra de rende fácil", () => {
-  const r = avaliarTexto("Conheça o RioRendeFácil, tecnologia para crédito privado.");
+test("nome da marca não dispara alertas", () => {
+  const r = avaliarTexto("Conheça o CCB Rio Bank, tecnologia para crédito privado.");
   assert.equal(r.achados.length, 0);
   assert.equal(r.aprovado, true);
 });

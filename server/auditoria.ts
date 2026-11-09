@@ -23,3 +23,20 @@ export async function auditar(e: {
     console.error("[auditoria] falha ao registrar:", e.acao, erro);
   }
 }
+
+/**
+ * Campos que mudaram entre o registro antigo e o novo, no formato
+ * { campo: { antes, depois } }. Vai em `dados` da auditoria para que toda
+ * alteração financeira mostre o valor anterior.
+ */
+export function diferencas(antes: Record<string, unknown> | null | undefined, depois: Record<string, unknown>) {
+  const norm = (v: unknown) => (v instanceof Date ? v.toISOString() : v === undefined ? null : v);
+  const r: Record<string, { antes: unknown; depois: unknown }> = {};
+  for (const [k, v] of Object.entries(depois)) {
+    if (k === "atualizadoEm") continue;
+    const a = norm(antes?.[k]);
+    const d = norm(v);
+    if (JSON.stringify(a) !== JSON.stringify(d)) r[k] = { antes: a, depois: d };
+  }
+  return r;
+}

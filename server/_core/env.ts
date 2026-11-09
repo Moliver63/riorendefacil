@@ -28,6 +28,8 @@ function lista(v: string | undefined): string[] {
 
 export const ENV = {
   isProduction,
+  /** Primeira versão só de consulta: desliga depósito, saque e reserva pela plataforma. */
+  modoConsulta: process.env.MODO_CONSULTA === "true",
   isTest,
   port: parseInt(process.env.PORT || "3000", 10),
   appUrl: (process.env.APP_URL || "http://localhost:3000").replace(/\/+$/, ""),
@@ -48,7 +50,7 @@ export const ENV = {
   googleCallbackUrl: process.env.GOOGLE_CALLBACK_URL ?? "",
 
   resendApiKey: process.env.RESEND_API_KEY ?? "",
-  emailRemetente: process.env.EMAIL_REMETENTE ?? "RioRendeFácil <contato@riorendefacil.com.br>",
+  emailRemetente: process.env.EMAIL_REMETENTE ?? "CCB Rio Bank <contato@riorendefacil.com.br>",
   /** quem recebe aviso de lead novo (assessores) */
   emailsAssessores: lista(process.env.EMAILS_ASSESSORES),
 

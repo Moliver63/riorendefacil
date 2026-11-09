@@ -4,7 +4,8 @@ import { AreaLogada, Vazio } from "@/components/layout/Layout";
 import { SeloEmissor } from "@/components/landing/SiteLayout";
 import { trpc, type Saidas } from "@/lib/trpc";
 import { Seo } from "@/components/SEO";
-import { formatarBRL, formatarPct } from "~shared/finance";
+import { formatarBRL, formatarPct, taxaAnualEquivalente } from "~shared/finance";
+import { formatarMoeda, MOEDA_ROTULO, SITUACAO_ROTULO, type SituacaoAplicacao } from "~shared/moeda";
 import { BarraAlocacao, type ChaveFatia } from "@/components/oferta/Ficha";
 import { EvolucaoPatrimonio } from "@/components/painel/EvolucaoPatrimonio";
 import { ModalDeposito, ModalSaque, PainelSaque, TabelaMovimentacoes } from "@/components/painel/Movimentacoes";
@@ -87,7 +88,7 @@ function MinhasReservas() {
   );
 }
 
-function Extrato({ contratoId }: { contratoId: number }) {
+function Extrato({ contratoId, moeda = "BRL" }: { contratoId: number; moeda?: string }) {
   const { data: linhas } = trpc.investidor.extrato.useQuery({ contratoId });
   if (!linhas?.length) return <p className="bloco__nota">Sem lançamentos.</p>;
   return (
@@ -96,40 +97,101 @@ function Extrato({ contratoId }: { contratoId: number }) {
         <li key={i} className={l.status === "recusado" ? "extrato--recusado" : ""}>
           <span className="extrato__data num">{data(l.data)}</span>
           <span className="extrato__desc">{l.descricao}</span>
-          <span className={`extrato__valor num ${l.valorCentavos < 0 ? "neg" : "pos"}`}>{l.valorCentavos < 0 ? "−" : "+"} {formatarBRL(Math.abs(l.valorCentavos))}</span>
+          <span className={`extrato__valor num ${l.valorCentavos < 0 ? "neg" : "pos"}`}>{l.valorCentavos < 0 ? "−" : "+"} {formatarMoeda(Math.abs(l.valorCentavos), moeda)}</span>
         </li>
       ))}
     </ul>
   );
 }
 
+/** Rótulo da aplicação: número da CCB quando houver, senão o contrato. */
+const rotuloAplicacao = (c: ContratoPainel) => (c.numeroCcb ? `CCB ${c.numeroCcb}` : `Contrato #${c.id}`);
+
+const SITUACAO_CLASSE: Record<SituacaoAplicacao, string> = {
+  ativa: "status--adimplente",
+  vencida: "status--alerta",
+  liquidada: "status--neutro",
+  pendente: "status--alerta",
+  cancelada: "status--atraso",
+};
+
+function Situacao({ c }: { c: ContratoPainel }) {
+  const texto = c.saquePrincipal ? "Saque em andamento" : c.depositoInformado ? "Depósito em conferência" : SITUACAO_ROTULO[c.situacao];
+  return <span className={`status ${SITUACAO_CLASSE[c.situacao]}`}>{texto}</span>;
+}
+
+/** Valor na moeda da aplicação e, se for dólar, o equivalente em reais logo abaixo. */
+function Valor({ centavos, reais, moeda }: { centavos: number; reais: number | null; moeda: string }) {
+  return (
+    <>
+      {formatarMoeda(centavos, moeda)}
+      {moeda !== "BRL" && <span className="sub sub--conv">{reais !== null ? `≈ ${formatarBRL(reais)}` : "sem cotação"}</span>}
+    </>
+  );
+}
+
+function DocumentosDaAplicacao({ c }: { c: ContratoPainel }) {
+  const baixar = trpc.investidor.baixarDocumento.useMutation({ onSuccess: (r) => window.open(r.url, "_blank", "noopener") });
+  return (
+    <div className="docs-aplicacao">
+      <ul className="lista-docs">
+        <li>
+          <div><strong>Termo de adesão do contrato #{c.id}</strong><span className="sub">gerado pela plataforma, para leitura e impressão</span></div>
+          <Link href={`/contrato/${c.id}`} className="btn btn--ghost btn--peq">Abrir</Link>
+        </li>
+        {c.documentos.map((d) => (
+          <li key={d.id}>
+            <div><strong>{d.titulo}</strong><span className="sub">{d.tipo}</span></div>
+            <button className="btn btn--ghost btn--peq" onClick={() => baixar.mutate({ id: d.id })} disabled={baixar.isPending}>Baixar</button>
+          </li>
+        ))}
+      </ul>
+      {!c.documentos.length && <p className="bloco__nota">A CCB assinada e os demais documentos aparecem aqui assim que a equipe publicar.</p>}
+      {baixar.error && <p className="aviso aviso--erro">{baixar.error.message}</p>}
+      <Link href="/documentos" className="btn btn--ghost btn--peq">Todos os documentos</Link>
+    </div>
+  );
+}
+
 function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["investidor"]["painel"] }) {
-  const [aba, setAba] = useState<"onde" | "evolucao" | "resgate" | "extrato">("evolucao");
+  type Aba = "evolucao" | "onde" | "resgate" | "extrato" | "documentos";
+  const [aba, setAba] = useState<Aba>("evolucao");
+  const abas: Aba[] = painel.modoConsulta ? ["evolucao", "onde", "extrato", "documentos"] : ["evolucao", "onde", "resgate", "extrato", "documentos"];
+  const ROTULO_ABA: Record<Aba, string> = { evolucao: "Evolução", onde: "Onde está seu dinheiro", resgate: "Sacar", extrato: "Extrato", documentos: "Documentos" };
+  const fm = (v: number) => formatarMoeda(v, c.moeda);
   return (
     <section className="bloco contrato">
       <div className="bloco__cab">
         <div>
-          <h2>{c.oferta}</h2>
-          <span className="bloco__det">{c.ofertaCodigo ? `${c.ofertaCodigo} · ` : ""}Contrato #{c.id} · {formatarPct(c.taxaMensal)} a.m. · {data(c.inicio)} a {data(c.vencimento)}</span>
+          <h2>{rotuloAplicacao(c)}</h2>
+          <span className="bloco__det">{c.emissora ? `${c.emissora} · ` : ""}{c.oferta}{c.numeroCcb ? ` · contrato #${c.id}` : ""}</span>
         </div>
-        <Link href={`/contrato/${c.id}`} className="btn btn--ghost btn--peq">Ver contrato</Link>
+        <Situacao c={c} />
       </div>
-      <div className="kpis">
-        <div className="kpi"><span>Saldo aportado</span><strong className="num">{formatarBRL(c.principalCentavos)}</strong><small>Disponível no vencimento, {data(c.vencimento)}</small></div>
-        <div className="kpi kpi--dest"><span>Rendimento disponível</span><strong className="num">{formatarBRL(c.disponivelCentavos)}</strong><small>Se pedir hoje, pago em {data(painel.pagamentoSePedirHoje)}</small></div>
-        <div className="kpi"><span>Saldo total</span><strong className="num">{formatarBRL(c.principalCentavos + c.disponivelCentavos)}</strong><small>Rendimento bruto acumulado {formatarBRL(c.rendimentoBrutoCentavos)} · já resgatado {formatarBRL(c.resgatadoCentavos)}</small></div>
-      </div>
+
+      <dl className="ficha-aplicacao">
+        <div><dt>Valor inicial</dt><dd className="num">{fm(c.principalCentavos)}</dd></div>
+        <div className="ficha-aplicacao__dest"><dt>Saldo atualizado</dt><dd className="num">{fm(c.saldoCentavos)}</dd>{c.moeda !== "BRL" && <small>{c.emReais.saldoCentavos !== null ? `≈ ${formatarBRL(c.emReais.saldoCentavos)}` : "sem cotação registrada"}</small>}</div>
+        <div><dt>Rentabilidade acumulada</dt><dd className="num">{formatarPct(c.rentabilidadePct)}</dd><small>{fm(c.rendimentoTotalCentavos)} de rendimento</small></div>
+        <div><dt>Rendimento disponível</dt><dd className="num">{fm(c.disponivelCentavos)}</dd><small>{painel.modoConsulta ? "saque com seu especialista" : `se pedir hoje, pago em ${data(painel.pagamentoSePedirHoje)}`}</small></div>
+        <div><dt>Moeda</dt><dd>{MOEDA_ROTULO[c.moeda]}</dd></div>
+        <div><dt>Taxa contratada</dt><dd className="num">{formatarPct(c.taxaMensal)} a.m.</dd><small>{formatarPct(taxaAnualEquivalente(c.taxaMensal))} a.a. equivalente</small></div>
+        <div><dt>Emissão</dt><dd className="num">{data(c.inicio)}</dd></div>
+        <div><dt>Vencimento</dt><dd className="num">{data(c.vencimento)}</dd><small>{c.prazoMeses} meses</small></div>
+      </dl>
+      {c.moeda !== "BRL" && <CotacaoUsada cotacao={painel.cotacao} />}
+
       <div className="abas" role="tablist">
-        {(["evolucao", "onde", "resgate", "extrato"] as const).map((a) => (
+        {abas.map((a) => (
           <button key={a} role="tab" aria-selected={aba === a} className={aba === a ? "on" : ""} onClick={() => setAba(a)}>
-            {a === "onde" ? "Onde está seu dinheiro" : a === "evolucao" ? "Evolução" : a === "resgate" ? "Sacar" : "Extrato"}
+            {ROTULO_ABA[a]}
           </button>
         ))}
       </div>
       {aba === "onde" && (
         <>
           <BarraAlocacao
-            titulo="Sua parte proporcional nas operações da oferta, hoje"
+            titulo="Sua parte proporcional nas operações da oferta, hoje (em reais)"
             fatias={c.alocacao.map((a) => ({ chave: a.grao as ChaveFatia, rotulo: a.rotulo, centavos: a.centavos, det: a.operacoes ? `${a.grao === "a_receber" ? "" : "grão comprado · "}${a.operacoes} ${a.operacoes === 1 ? "operação" : "operações"}` : undefined }))}
           />
           <Link href={`/ofertas/${c.ofertaId}`} className="btn btn--ghost btn--peq">Ver operações e garantias da oferta</Link>
@@ -147,11 +209,22 @@ function ContratoAtivo({ c, painel }: { c: ContratoPainel; painel: Saidas["inves
           vencimento={c.vencimento}
           hoje={painel.hoje}
           pontos={c.evolucao}
+          moeda={c.moeda}
         />
       )}
       {aba === "resgate" && <PainelSaque c={c} painel={painel} />}
-      {aba === "extrato" && <Extrato contratoId={c.id} />}
+      {aba === "extrato" && <Extrato contratoId={c.id} moeda={c.moeda} />}
+      {aba === "documentos" && <DocumentosDaAplicacao c={c} />}
     </section>
+  );
+}
+
+function CotacaoUsada({ cotacao }: { cotacao: Saidas["investidor"]["painel"]["cotacao"] }) {
+  if (!cotacao) return <p className="cotacao-nota">Conversão para reais indisponível: a equipe ainda não registrou a cotação do dólar.</p>;
+  return (
+    <p className="cotacao-nota">
+      Conversão para reais: US$ 1 = <strong className="num">{cotacao.valor.toLocaleString("pt-BR", { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</strong> em {data(cotacao.data)} · {cotacao.fonte}
+    </p>
   );
 }
 
@@ -163,12 +236,12 @@ const STATUS_CLASSE: Record<string, string> = {
   aguardando_aporte: "status--alerta",
 };
 
-function ContratoPendente({ c, onDepositar }: { c: ContratoPainel; onDepositar: () => void }) {
+function ContratoPendente({ c, onDepositar }: { c: ContratoPainel; onDepositar?: () => void }) {
   return (
     <section className="bloco bloco--pendente">
       <div className="bloco__cab">
         <div>
-          <h2>Contrato #{c.id} · {formatarBRL(c.principalCentavos)}</h2>
+          <h2>{rotuloAplicacao(c)} · {formatarMoeda(c.principalCentavos, c.moeda)}</h2>
           <span className="bloco__det">{formatarPct(c.taxaMensal)} a.m. · {c.prazoMeses} meses · {c.oferta}</span>
         </div>
         <span className={`status ${STATUS_CLASSE[c.status] ?? ""}`}>{c.statusRotulo}</span>
@@ -177,12 +250,14 @@ function ContratoPendente({ c, onDepositar }: { c: ContratoPainel; onDepositar: 
         {c.status === "aguardando_assinatura"
           ? "Leia o contrato com calma. A assinatura é feita com o especialista."
           : c.depositoInformado
-            ? `Depósito de ${formatarBRL(c.depositoInformado.valorCentavos)} informado em ${data(c.depositoInformado.dataDeposito)}. A equipe está conferindo na conta vinculada.`
-            : "Contrato assinado. Faça o depósito na conta vinculada e avise por aqui; o rendimento conta a partir da data do depósito."}
+            ? `Depósito de ${formatarMoeda(c.depositoInformado.valorCentavos, c.moeda)} informado em ${data(c.depositoInformado.dataDeposito)}. A equipe está conferindo na conta vinculada.`
+            : onDepositar
+              ? "Contrato assinado. Faça o depósito na conta vinculada e avise por aqui; o rendimento conta a partir da data do depósito."
+              : "Contrato assinado. Seu especialista envia os dados da conta vinculada; o rendimento conta a partir da data do depósito."}
       </p>
       <div className="acoes-inline">
         <Link href={`/contrato/${c.id}`} className="btn btn--ghost btn--peq">Ler o contrato</Link>
-        {c.status === "aguardando_aporte" && !c.depositoInformado && <button className="btn btn--primario btn--peq" onClick={onDepositar}>Depositar</button>}
+        {c.status === "aguardando_aporte" && !c.depositoInformado && onDepositar && <button className="btn btn--primario btn--peq" onClick={onDepositar}>Depositar</button>}
       </div>
     </section>
   );
@@ -193,39 +268,40 @@ function ContratoEncerrado({ c }: { c: ContratoPainel }) {
     <section className="bloco">
       <div className="bloco__cab">
         <div>
-          <h2>{c.oferta}</h2>
-          <span className="bloco__det">Contrato #{c.id} · {formatarBRL(c.principalCentavos)} · {formatarPct(c.taxaMensal)} a.m.{c.inicio ? ` · desde ${data(c.inicio)}` : ""}</span>
+          <h2>{rotuloAplicacao(c)}</h2>
+          <span className="bloco__det">{c.oferta} · {formatarMoeda(c.principalCentavos, c.moeda)} · {formatarPct(c.taxaMensal)} a.m.{c.inicio ? ` · ${data(c.inicio)} a ${data(c.vencimento)}` : ""}</span>
         </div>
-        <span className={`status ${STATUS_CLASSE[c.status] ?? ""}`}>{c.statusRotulo}</span>
+        <Situacao c={c} />
       </div>
-      <p className="bloco__nota">{c.status === "liquidado" ? "Contrato encerrado com o saque do principal. O histórico está nas movimentações." : "Contrato cancelado antes do aporte."}</p>
-      {c.status === "liquidado" && <Extrato contratoId={c.id} />}
+      <p className="bloco__nota">{c.status === "liquidado" ? "Aplicação liquidada com o pagamento do principal. O histórico está nas movimentações." : "Contrato cancelado antes do aporte."}</p>
+      {c.status === "liquidado" && <Extrato contratoId={c.id} moeda={c.moeda} />}
     </section>
   );
 }
 
-/** Todos os investimentos numa tabela; a linha escolhida abre o detalhe logo abaixo. */
-function MeusInvestimentos({ contratos, selecionado, onSelecionar }: { contratos: ContratoPainel[]; selecionado: number | null; onSelecionar: (id: number) => void }) {
+/** Todas as aplicações numa tabela; a linha escolhida abre o detalhe logo abaixo. */
+function MinhasAplicacoes({ contratos, selecionado, onSelecionar }: { contratos: ContratoPainel[]; selecionado: number | null; onSelecionar: (id: number) => void }) {
   return (
     <section className="bloco">
-      <div className="bloco__cab"><h2>Meus investimentos</h2><span className="bloco__det">{contratos.length} {contratos.length === 1 ? "contrato" : "contratos"}</span></div>
+      <div className="bloco__cab"><h2>Minhas aplicações</h2><span className="bloco__det">{contratos.length} {contratos.length === 1 ? "aplicação" : "aplicações"}</span></div>
       <div className="tabela-wrap">
         <table className="tabela tabela--invest">
-          <thead><tr><th>Investimento</th><th>Situação</th><th className="dir">Aportado</th><th className="dir">Taxa</th><th>Período</th><th className="dir">Saldo hoje</th><th className="dir">Rendimento disponível</th></tr></thead>
+          <thead><tr><th>Aplicação</th><th>Situação</th><th className="dir">Valor inicial</th><th className="dir">Taxa</th><th>Emissão e vencimento</th><th className="dir">Saldo atualizado</th><th className="dir">Rentabilidade</th></tr></thead>
           <tbody>
-            {contratos.map((c) => (
-              <tr key={c.id} className={selecionado === c.id ? "selecionada" : ""} onClick={() => onSelecionar(c.id)} tabIndex={0} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelecionar(c.id)} aria-selected={selecionado === c.id}>
-                <td><strong>{c.oferta}</strong><span className="sub">{c.ofertaCodigo ? `${c.ofertaCodigo} · ` : ""}contrato #{c.id}</span></td>
-                <td>
-                  <span className={`status ${STATUS_CLASSE[c.status] ?? ""}`}>{c.saquePrincipal ? "Saque em andamento" : c.depositoInformado ? "Depósito em conferência" : c.statusRotulo}</span>
-                </td>
-                <td className="dir num">{formatarBRL(c.principalCentavos)}</td>
-                <td className="dir num">{formatarPct(c.taxaMensal)} a.m.</td>
-                <td className="num">{c.inicio ? `${data(c.inicio)} a ${data(c.vencimento)}` : `${c.prazoMeses} meses`}</td>
-                <td className="dir num">{c.status === "ativo" ? <strong>{formatarBRL(c.saldoCentavos)}</strong> : "–"}</td>
-                <td className="dir num">{c.status === "ativo" ? formatarBRL(c.disponivelCentavos) : "–"}</td>
-              </tr>
-            ))}
+            {contratos.map((c) => {
+              const rende = c.status === "ativo";
+              return (
+                <tr key={c.id} className={selecionado === c.id ? "selecionada" : ""} onClick={() => onSelecionar(c.id)} tabIndex={0} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onSelecionar(c.id)} aria-selected={selecionado === c.id}>
+                  <td><strong>{rotuloAplicacao(c)}</strong><span className="sub">{c.moeda} · {c.emissora ?? c.oferta}</span></td>
+                  <td><Situacao c={c} /></td>
+                  <td className="dir num"><Valor centavos={c.principalCentavos} reais={c.emReais.principalCentavos} moeda={c.moeda} /></td>
+                  <td className="dir num">{formatarPct(c.taxaMensal)} a.m.</td>
+                  <td className="num">{c.inicio ? `${data(c.inicio)} a ${data(c.vencimento)}` : `${c.prazoMeses} meses`}</td>
+                  <td className="dir num">{rende ? <strong><Valor centavos={c.saldoCentavos} reais={c.emReais.saldoCentavos} moeda={c.moeda} /></strong> : "–"}</td>
+                  <td className="dir num">{rende ? <span className="pos-texto">+{formatarPct(c.rentabilidadePct)}</span> : "–"}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -241,23 +317,37 @@ export default function Painel() {
   const [selecionado, setSelecionado] = useState<number | null>(null);
   const atual = contratos.find((c) => c.id === selecionado) ?? ativos[0] ?? contratos[0];
 
-  const totais = useMemo(() => ({
-    patrimonio: ativos.reduce((s, c) => s + c.saldoCentavos, 0),
-    aportado: ativos.reduce((s, c) => s + c.principalCentavos, 0),
-    disponivel: ativos.reduce((s, c) => s + c.disponivelCentavos, 0),
-    juros30: ativos.reduce((s, c) => s + c.jurosProximoMesCentavos, 0),
-    aguardando: contratos.filter((c) => c.status === "aguardando_aporte" || c.status === "aguardando_assinatura").reduce((s, c) => s + c.principalCentavos, 0),
-  }), [contratos, ativos]);
+  // tudo em reais: aplicações em dólar entram pela cotação do painel; sem cotação ficam de fora e o aviso aparece
+  const totais = useMemo(() => {
+    const soma = (lista: ContratoPainel[], f: (c: ContratoPainel) => number | null) => lista.reduce((s, c) => s + (f(c) ?? 0), 0);
+    const pendentes = contratos.filter((c) => c.status === "aguardando_aporte" || c.status === "aguardando_assinatura");
+    const investido = soma(ativos, (c) => c.emReais.principalCentavos);
+    const rendimento = soma(ativos, (c) => c.emReais.rendimentoCentavos);
+    return {
+      investido,
+      saldo: soma(ativos, (c) => c.emReais.saldoCentavos),
+      rendimento,
+      rentabilidade: investido > 0 ? rendimento / investido : 0,
+      disponivel: soma(ativos, (c) => c.emReais.disponivelCentavos),
+      juros30: soma(ativos, (c) => c.emReais.jurosProximoMesCentavos),
+      aguardando: soma(pendentes, (c) => c.emReais.principalCentavos),
+      temDolar: contratos.some((c) => c.moeda !== "BRL" && c.status !== "cancelado"),
+      semCotacao: ativos.some((c) => c.emReais.saldoCentavos === null),
+    };
+  }, [contratos, ativos]);
+  const consulta = painel.data?.modoConsulta ?? false;
 
   return (
     <AreaLogada
       titulo="Minha carteira"
-      subtitulo="Todos os seus investimentos, depósitos e saques."
+      subtitulo={consulta ? "Quanto você aplicou, quanto tem hoje e quanto rendeu, em cada CCB." : "Suas aplicações, depósitos e saques."}
       acoes={
-        <div className="acoes-inline">
-          <button className="btn btn--ghost" onClick={() => setModal({ tipo: "saque" })}>Sacar</button>
-          <button className="btn btn--primario" onClick={() => setModal({ tipo: "deposito" })}>Depositar</button>
-        </div>
+        consulta ? undefined : (
+          <div className="acoes-inline">
+            <button className="btn btn--ghost" onClick={() => setModal({ tipo: "saque" })}>Sacar</button>
+            <button className="btn btn--primario" onClick={() => setModal({ tipo: "deposito" })}>Depositar</button>
+          </div>
+        )
       }
     >
       <Seo titulo="Minha carteira" indexar={false} />
@@ -273,21 +363,33 @@ export default function Painel() {
         </section>
       ) : (
         <>
-          <dl className="resumo-carteira">
-            <div className="resumo-carteira__dest"><dt>Patrimônio investido hoje</dt><dd className="num">{formatarBRL(totais.patrimonio)}</dd><small>{ativos.length} {ativos.length === 1 ? "contrato ativo" : "contratos ativos"}</small></div>
-            <div><dt>Total aportado</dt><dd className="num">{formatarBRL(totais.aportado)}</dd></div>
-            <div><dt>Rendimento disponível</dt><dd className="num">{formatarBRL(totais.disponivel)}</dd><small>saque em D+{painel.data?.prazoResgateDias ?? 7}</small></div>
+          <section className="saldo-hero" aria-label="Resumo da carteira">
+            <div className="saldo-hero__principal">
+              <span>Saldo atualizado</span>
+              <strong className="num">{formatarBRL(totais.saldo)}</strong>
+              <small>{ativos.length} {ativos.length === 1 ? "aplicação ativa" : "aplicações ativas"} · atualizado em {data(painel.data?.hoje)}</small>
+            </div>
+            <dl className="saldo-hero__cards">
+              <div><dt>Total investido</dt><dd className="num">{formatarBRL(totais.investido)}</dd></div>
+              <div><dt>Rendimento</dt><dd className="num">{formatarBRL(totais.rendimento)}</dd></div>
+              <div><dt>Rentabilidade acumulada</dt><dd className="num saldo-hero__pct">+{formatarPct(totais.rentabilidade)}</dd></div>
+            </dl>
+          </section>
+          <dl className="resumo-carteira resumo-carteira--sec">
+            <div><dt>Rendimento disponível</dt><dd className="num">{formatarBRL(totais.disponivel)}</dd><small>{consulta ? "saque com seu especialista" : `saque em D+${painel.data?.prazoResgateDias ?? 7}`}</small></div>
             <div><dt>Juros nos próximos 30 dias</dt><dd className="num">{formatarBRL(totais.juros30)}</dd></div>
             {totais.aguardando > 0 && <div><dt>Aguardando aporte</dt><dd className="num">{formatarBRL(totais.aguardando)}</dd></div>}
           </dl>
+          {totais.temDolar && <CotacaoUsada cotacao={painel.data?.cotacao ?? null} />}
+          {totais.semCotacao && <p className="aviso aviso--alerta">As aplicações em dólar ficaram fora dos totais em reais até a cotação ser registrada.</p>}
 
-          <MeusInvestimentos contratos={contratos} selecionado={atual?.id ?? null} onSelecionar={setSelecionado} />
+          <MinhasAplicacoes contratos={contratos} selecionado={atual?.id ?? null} onSelecionar={setSelecionado} />
 
           {painel.data && atual && (
             atual.status === "ativo" ? (
               <ContratoAtivo key={atual.id} c={atual} painel={painel.data} />
             ) : atual.status === "aguardando_assinatura" || atual.status === "aguardando_aporte" ? (
-              <ContratoPendente c={atual} onDepositar={() => setModal({ tipo: "deposito", contrato: atual.id })} />
+              <ContratoPendente c={atual} onDepositar={consulta ? undefined : () => setModal({ tipo: "deposito", contrato: atual.id })} />
             ) : (
               <ContratoEncerrado c={atual} />
             )
@@ -296,16 +398,16 @@ export default function Painel() {
       )}
 
       <section className="bloco">
-        <div className="bloco__cab"><h2>Movimentações</h2><span className="bloco__det">depósitos e saques</span></div>
+        <div className="bloco__cab"><h2>Movimentações</h2><span className="bloco__det">{consulta ? "histórico registrado pela equipe" : "depósitos e saques"}</span></div>
         <TabelaMovimentacoes />
       </section>
 
-      <MinhasReservas />
+      {!consulta && <MinhasReservas />}
 
       <section className="bloco bloco--duas">
         <div>
           <h2>Quem está por trás</h2>
-          <p className="bloco__nota" style={{ marginTop: 8 }}>O RioRendeFácil é a tecnologia. A Rio compra e vende os grãos, o emissor parceiro estrutura a oferta e os recursos ficam em conta vinculada, nunca na plataforma.</p>
+          <p className="bloco__nota" style={{ marginTop: 8 }}>O CCB Rio Bank é a tecnologia. A Rio compra e vende os grãos, o emissor parceiro estrutura a oferta e os recursos ficam em conta vinculada, nunca na plataforma.</p>
         </div>
         <SeloEmissor />
       </section>

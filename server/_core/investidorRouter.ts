@@ -11,6 +11,8 @@ import { esquemaCadastro, mascararCpf } from "../../shared/cadastro";
 import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
 import { dataPagamentoResgate, fatorMeses, formatarBRL, formatarPct, jurosDoMes, taxaMensalEfetiva, tetoDaFaixa, type Faixa } from "../../shared/finance";
 import { alocacao } from "../lastroService";
+import { ultimaCotacao } from "../cotacaoService";
+import { formatarMoeda, paraReais, rentabilidadeAcumulada, situacaoAplicacao, type Moeda } from "../../shared/moeda";
 import { ficha } from "../fichaOferta";
 import { prazoValido } from "../../shared/lastroGraos";
 import { auditar } from "../auditoria";
@@ -46,6 +48,13 @@ async function meuContrato(usuarioId: number, contratoId: number) {
   const c = await getContrato(contratoId).catch(() => null);
   if (!c || c.investidorId !== inv.id) throw new TRPCError({ code: "NOT_FOUND", message: "Contrato não encontrado." });
   return c;
+}
+
+/** Em modo consulta a plataforma só mostra; movimentação fica com a equipe e o emissor. */
+function exigirTransacional() {
+  if (ENV.modoConsulta) {
+    throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Nesta versão o app é só de consulta. Para depositar ou sacar, fale com seu especialista." });
+  }
 }
 
 export const investidorRouter = router({
@@ -130,11 +139,23 @@ export const investidorRouter = router({
 
     const e = carregarEmissor(process.env);
     const hoje = new Date();
+    const hojeIso = hoje.toISOString().slice(0, 10);
+    const cotacao = lista.some(({ c }) => c.moeda !== "BRL") ? await ultimaCotacao("USD") : null;
+    const ids = lista.map(({ c }) => c.id);
+    const docs = ids.length
+      ? await db
+          .select({ id: documentos.id, titulo: documentos.titulo, tipo: documentos.tipo, escopoId: documentos.escopoId })
+          .from(documentos)
+          .where(and(eq(documentos.escopo, "contrato"), inArray(documentos.escopoId, ids)))
+          .orderBy(desc(documentos.publicadoEm))
+      : [];
     const itens = await Promise.all(
       lista.map(async ({ c, oferta, ofertaCodigo }) => {
         const resgatado = await totalResgatado(c.id);
         const noTempo = c.status === "ativo" ? await resgatesDoContrato(c) : [];
         const s = saldoDoContrato(c, noTempo, hoje);
+        const rent = c.status === "ativo" ? rentabilidadeAcumulada(c.principalCentavos, s.saldoCentavos, resgatado) : { rendimentoCentavos: 0, pct: 0 };
+        const reais = (v: number) => paraReais(v, c.moeda, cotacao);
         return {
           id: c.id,
           oferta,
@@ -142,6 +163,21 @@ export const investidorRouter = router({
           ofertaCodigo,
           status: c.status,
           statusRotulo: STATUS_CONTRATO_ROTULO[c.status] ?? c.status,
+          situacao: situacaoAplicacao(c.status, c.vencimento, hojeIso),
+          moeda: c.moeda as Moeda,
+          numeroCcb: c.numeroCcb,
+          emissora: e.nome || null,
+          rentabilidadePct: rent.pct,
+          rendimentoTotalCentavos: rent.rendimentoCentavos,
+          /** equivalentes em reais pela cotação do painel (null se dólar sem cotação) */
+          emReais: {
+            principalCentavos: reais(c.principalCentavos),
+            saldoCentavos: reais(s.saldoCentavos),
+            rendimentoCentavos: reais(rent.rendimentoCentavos),
+            disponivelCentavos: reais(s.disponivelCentavos),
+            jurosProximoMesCentavos: reais(c.status === "ativo" ? jurosDoMes(s.saldoCentavos, Number(c.taxaMensal), 30) : 0),
+          },
+          documentos: docs.filter((d) => d.escopoId === c.id).map(({ id, titulo, tipo }) => ({ id, titulo, tipo })),
           principalCentavos: c.principalCentavos,
           taxaMensal: Number(c.taxaMensal),
           prazoMeses: c.prazoMeses,
@@ -164,7 +200,9 @@ export const investidorRouter = router({
       }),
     );
     return {
-      resgateHabilitado: pendenciasParaCaptar(e).length === 0,
+      resgateHabilitado: pendenciasParaCaptar(e).length === 0 && !ENV.modoConsulta,
+      modoConsulta: ENV.modoConsulta,
+      cotacao,
       prazoResgateDias: e.prazoResgateDias,
       pagamentoSePedirHoje: dataPagamentoResgate(hoje, e.prazoResgateDias).toISOString().slice(0, 10),
       hoje: hoje.toISOString().slice(0, 10),
@@ -185,6 +223,8 @@ export const investidorRouter = router({
       oferta: o?.nome ?? "",
       ofertaCodigo: o?.codigo ?? null,
       coberturaMinima: o ? Number(o.coberturaMinima) : 1.3,
+      moeda: c.moeda as Moeda,
+      numeroCcb: c.numeroCcb,
       principalCentavos: c.principalCentavos,
       taxaMensal: Number(c.taxaMensal),
       prazoMeses: c.prazoMeses,
@@ -214,6 +254,7 @@ export const investidorRouter = router({
   solicitarResgate: investidorProcedure
     .input(z.object({ contratoId: z.number().int(), valorCentavos: z.number().int().positive(), idempotencyKey: z.string().uuid() }))
     .mutation(async ({ ctx, input }) => {
+      exigirTransacional();
       const e = carregarEmissor(process.env);
       if (pendenciasParaCaptar(e).length > 0) {
         throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Resgates ainda não estão habilitados nesta plataforma." });
@@ -345,6 +386,7 @@ export const investidorRouter = router({
           oferta,
           codigo,
           principalCentavos: c.principalCentavos,
+          moeda: c.moeda as Moeda,
           prazoMeses: c.prazoMeses,
           taxaMensal: Number(c.taxaMensal),
           depositoInformado: await depositoAberto(c.id),
@@ -357,6 +399,7 @@ export const investidorRouter = router({
   prepararComprovante: investidorProcedure
     .input(z.object({ contratoId: z.number().int(), nomeArquivo: z.string().min(1).max(200), contentType: z.string().max(100), tamanho: z.number().int().positive() }))
     .mutation(async ({ ctx, input }) => {
+      exigirTransacional();
       const c = await meuContrato(ctx.usuario.id, input.contratoId);
       if (!r2Configurado()) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Envio de arquivos ainda não configurado. Informe o depósito sem comprovante." });
       if (!/^(application\/pdf|image\/(png|jpeg))$/.test(input.contentType)) throw new TRPCError({ code: "BAD_REQUEST", message: "Envie PDF, PNG ou JPG." });
@@ -379,6 +422,7 @@ export const investidorRouter = router({
       }),
     )
     .mutation(async ({ ctx, input }) => {
+      exigirTransacional();
       const e = carregarEmissor(process.env);
       if (pendenciasParaCaptar(e).length > 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Depósitos ainda não estão habilitados." });
       const c = await meuContrato(ctx.usuario.id, input.contratoId);
@@ -427,6 +471,7 @@ export const investidorRouter = router({
   solicitarSaquePrincipal: investidorProcedure
     .input(z.object({ contratoId: z.number().int(), ciente: z.literal(true) }))
     .mutation(async ({ ctx, input }) => {
+      exigirTransacional();
       const e = carregarEmissor(process.env);
       if (pendenciasParaCaptar(e).length > 0) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "Saques ainda não estão habilitados." });
       const c = await meuContrato(ctx.usuario.id, input.contratoId);
@@ -470,12 +515,14 @@ export const investidorRouter = router({
   movimentacoes: investidorProcedure.query(async ({ ctx }) => {
     const inv = await meuInvestidor(ctx.usuario.id);
     const meus = await db
-      .select({ id: contratos.id, oferta: ofertas.nome })
+      .select({ id: contratos.id, oferta: ofertas.nome, moeda: contratos.moeda })
       .from(contratos)
       .innerJoin(ofertas, eq(contratos.ofertaId, ofertas.id))
       .where(eq(contratos.investidorId, inv.id));
     const ids = meus.map((m) => m.id);
     const nome = new Map(meus.map((m) => [m.id, m.oferta]));
+    const moedaDe = new Map(meus.map((m) => [m.id, m.moeda as Moeda]));
+    const fm = (v: number, contratoId: number) => formatarMoeda(v, moedaDe.get(contratoId) ?? "BRL");
     if (!ids.length) return [];
     const [deps, rend, princ] = await Promise.all([
       db.select().from(depositos).where(inArray(depositos.contratoId, ids)),
@@ -484,9 +531,9 @@ export const investidorRouter = router({
     ]);
     const ROT: Record<string, string> = { informado: "Em conferência", confirmado: "Confirmado", solicitado: "Solicitado", aprovado: "Aprovado", pago: "Pago", recusado: "Recusado" };
     const itens = [
-      ...deps.map((d) => ({ chave: `d${d.id}`, tipo: "deposito" as const, rotulo: "Depósito", contratoId: d.contratoId, oferta: nome.get(d.contratoId) ?? "", data: `${d.dataDeposito}T12:00:00.000Z`, valorCentavos: d.valorCentavos, liquidoCentavos: d.valorCentavos, status: d.status, statusRotulo: ROT[d.status] ?? d.status, previstoPara: null as string | null, detalhe: d.motivoRecusa ?? `avisado em ${d.criadoEm.toLocaleDateString("pt-BR")}` })),
-      ...rend.map((r) => ({ chave: `r${r.id}`, tipo: "saque_rendimento" as const, rotulo: "Saque de rendimento", contratoId: r.contratoId, oferta: nome.get(r.contratoId) ?? "", data: r.solicitadoEm.toISOString(), valorCentavos: -r.valorCentavos, liquidoCentavos: -(r.valorCentavos - Number(r.irRetidoCentavos)), status: r.status, statusRotulo: ROT[r.status] ?? r.status, previstoPara: r.previstoPara, detalhe: r.motivoRecusa ?? `IR ${formatarBRL(Number(r.irRetidoCentavos))}` })),
-      ...princ.map((r) => ({ chave: `p${r.id}`, tipo: "saque_principal" as const, rotulo: r.tipo === "vencimento" ? "Saque no vencimento" : "Saque antecipado do principal", contratoId: r.contratoId, oferta: nome.get(r.contratoId) ?? "", data: r.solicitadoEm.toISOString(), valorCentavos: -r.brutoCentavos, liquidoCentavos: -r.liquidoCentavos, status: r.status, statusRotulo: ROT[r.status] ?? r.status, previstoPara: r.previstoPara, detalhe: r.motivoRecusa ?? (r.penalidadeCentavos > 0 ? `penalidade ${formatarBRL(r.penalidadeCentavos)} · IR ${formatarBRL(r.irCentavos)}` : `IR ${formatarBRL(r.irCentavos)}`) })),
+      ...deps.map((d) => ({ chave: `d${d.id}`, tipo: "deposito" as const, moeda: moedaDe.get(d.contratoId) ?? "BRL", rotulo: "Depósito", contratoId: d.contratoId, oferta: nome.get(d.contratoId) ?? "", data: `${d.dataDeposito}T12:00:00.000Z`, valorCentavos: d.valorCentavos, liquidoCentavos: d.valorCentavos, status: d.status, statusRotulo: ROT[d.status] ?? d.status, previstoPara: null as string | null, detalhe: d.motivoRecusa ?? `avisado em ${d.criadoEm.toLocaleDateString("pt-BR")}` })),
+      ...rend.map((r) => ({ chave: `r${r.id}`, tipo: "saque_rendimento" as const, moeda: moedaDe.get(r.contratoId) ?? "BRL", rotulo: "Saque de rendimento", contratoId: r.contratoId, oferta: nome.get(r.contratoId) ?? "", data: r.solicitadoEm.toISOString(), valorCentavos: -r.valorCentavos, liquidoCentavos: -(r.valorCentavos - Number(r.irRetidoCentavos)), status: r.status, statusRotulo: ROT[r.status] ?? r.status, previstoPara: r.previstoPara, detalhe: r.motivoRecusa ?? `IR ${fm(Number(r.irRetidoCentavos), r.contratoId)}` })),
+      ...princ.map((r) => ({ chave: `p${r.id}`, tipo: "saque_principal" as const, moeda: moedaDe.get(r.contratoId) ?? "BRL", rotulo: r.tipo === "vencimento" ? "Saque no vencimento" : "Saque antecipado do principal", contratoId: r.contratoId, oferta: nome.get(r.contratoId) ?? "", data: r.solicitadoEm.toISOString(), valorCentavos: -r.brutoCentavos, liquidoCentavos: -r.liquidoCentavos, status: r.status, statusRotulo: ROT[r.status] ?? r.status, previstoPara: r.previstoPara, detalhe: r.motivoRecusa ?? (r.penalidadeCentavos > 0 ? `penalidade ${fm(r.penalidadeCentavos, r.contratoId)} · IR ${fm(r.irCentavos, r.contratoId)}` : `IR ${fm(r.irCentavos, r.contratoId)}`) })),
     ];
     return itens.sort((a, b) => b.data.localeCompare(a.data));
   }),

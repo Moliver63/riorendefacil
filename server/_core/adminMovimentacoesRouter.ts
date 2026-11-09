@@ -13,6 +13,8 @@ import { auditar } from "../auditoria";
 import { getContrato } from "../contratoService";
 import { lancar } from "../lastroService";
 import { formatarBRL } from "../../shared/finance";
+import { formatarMoeda } from "../../shared/moeda";
+import { emReaisDoContrato } from "../cotacaoService";
 import { ativarContrato, emailDoInvestidor } from "./adminInvestimentosRouter";
 import { emailDepositoRecusado, emailSaquePrincipalPago, emailSaquePrincipalRecusado, enviarEmail } from "./email";
 
@@ -122,8 +124,8 @@ export const movimentacoesRoutes = {
         await lancar({
           ofertaId: c.ofertaId,
           tipo: "pagamento_principal",
-          valorCentavos: r.brutoCentavos,
-          descricao: `Saque do principal do contrato #${c.id} (${r.tipo === "vencimento" ? "vencimento" : "antecipado"}; líquido ${formatarBRL(r.liquidoCentavos)} + IR ${formatarBRL(r.irCentavos)})`,
+          valorCentavos: await emReaisDoContrato(c, r.brutoCentavos),
+          descricao: `Saque do principal do contrato #${c.id} (${r.tipo === "vencimento" ? "vencimento" : "antecipado"}; líquido ${formatarMoeda(r.liquidoCentavos, c.moeda)} + IR ${formatarMoeda(r.irCentavos, c.moeda)})`,
           contratoId: c.id,
           comprovanteChave: input.comprovanteChave,
           criadoPor: ctx.usuario.id,

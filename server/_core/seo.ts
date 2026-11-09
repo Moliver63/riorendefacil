@@ -43,7 +43,7 @@ seoRouter.get("/robots.txt", (_req, res) => {
 type Meta = { titulo: string; descricao: string; indexar: boolean };
 
 const PADRAO: Meta = {
-  titulo: "RioRendeFácil · Renda fixa com lastro que você enxerga",
+  titulo: "CCB Rio Bank · Renda fixa com lastro que você enxerga",
   descricao:
     "Tecnologia para investir em crédito privado com lastro real: cada CCB do pool visível, rentabilidade mostrada já líquida de IR e riscos explicados antes de qualquer aporte.",
   indexar: true,
@@ -54,10 +54,10 @@ export function metaParaUrl(url: string): Meta {
   const artigo = caminho.match(/^\/conteudo\/([a-z0-9-]+)$/);
   if (artigo) {
     const a = artigoPorSlug(artigo[1]!);
-    if (a) return { titulo: `${a.titulo} · RioRendeFácil`, descricao: a.resumo, indexar: true };
+    if (a) return { titulo: `${a.titulo} · CCB Rio Bank`, descricao: a.resumo, indexar: true };
   }
   if (caminho === "/conteudo") {
-    return { titulo: "Conteúdo · RioRendeFácil", descricao: "Crédito privado explicado sem jargão: CCB, garantias, LTV, FGC e conta vinculada.", indexar: true };
+    return { titulo: "Conteúdo · CCB Rio Bank", descricao: "Crédito privado explicado sem jargão: CCB, garantias, LTV, FGC e conta vinculada.", indexar: true };
   }
   if (/^\/(admin|painel|trilha|perfil)/.test(caminho)) return { ...PADRAO, indexar: false };
   return PADRAO;

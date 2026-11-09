@@ -7,19 +7,19 @@ export default {
   theme: {
     extend: {
       colors: {
-        tinta: { DEFAULT: "#0d2a2b", 2: "#143c3d", 3: "#1e5152" },
-        papel: "#fbf9f4",
-        areia: { DEFAULT: "#f2ece0", 2: "#e7dfcf" },
-        texto: "#142322",
-        suave: "#5a6b68",
-        linha: "#ddd5c5",
-        cobre: { DEFAULT: "#c0673a", 2: "#a85530" },
+        tinta: { DEFAULT: "#0b1f3a", 2: "#112a4d", 3: "#1b3a66" },
+        papel: "#fbfcfe",
+        areia: { DEFAULT: "#f1f4f9", 2: "#e3e9f2" },
+        texto: "#0e1a2b",
+        suave: "#586579",
+        linha: "#dbe2ec",
+        cobre: { DEFAULT: "#c6a052", 2: "#b38a3a", texto: "#7f6020" },
         verde: "#2e7b59",
         ambar: "#a86f12",
         vermelho: "#b0412c",
       },
       fontFamily: {
-        serif: ["Fraunces", "Georgia", "serif"],
+        serif: ["Manrope", "system-ui", "sans-serif"],
         sans: ["Instrument Sans", "system-ui", "sans-serif"],
         mono: ["JetBrains Mono", "monospace"],
       },

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { formatarMoeda, MOEDA_ROTULO, MOEDAS, paraReais, type Moeda } from "~shared/moeda";
 import { AreaLogada, Vazio } from "@/components/layout/Layout";
 import { Seo } from "@/components/SEO";
 import { trpc } from "@/lib/trpc";
@@ -52,23 +53,37 @@ function NovoContrato({ investidorId, apto, motivo, reserva }: { investidorId: n
   const [valor, setValor] = useState(reserva ? (reserva.valorCentavos / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 }) : "");
   const [prazo, setPrazo] = useState(String(reserva?.prazoMeses ?? 12));
   const [obs, setObs] = useState("");
-  const criar = trpc.admin.contratos.criar.useMutation({ onSuccess: () => { setValor(""); setObs(""); void utils.admin.investidores.detalhe.invalidate(); void utils.admin.investidores.listar.invalidate(); } });
+  const [moeda, setMoeda] = useState<Moeda>("BRL");
+  const [numeroCcb, setNumeroCcb] = useState("");
+  const cotacoes = trpc.admin.cotacoes.listar.useQuery(undefined, { enabled: moeda === "USD" });
+  const criar = trpc.admin.contratos.criar.useMutation({ onSuccess: () => { setValor(""); setObs(""); setNumeroCcb(""); void utils.admin.investidores.detalhe.invalidate(); void utils.admin.investidores.listar.invalidate(); } });
 
   const oferta = ativas.find((o) => o.id === ofertaId) ?? ativas[0];
   const centavos = reais(valor);
-  const taxa = oferta && centavos ? tetoDaFaixa(oferta.faixas as Faixa[], centavos, Number(prazo)) : null;
+  // as faixas são em reais: aplicação em dólar é enquadrada pela cotação mais recente
+  const cotacao = moeda === "USD" ? cotacoes.data?.ultima ?? null : null;
+  const centavosReais = paraReais(centavos, moeda, cotacao);
+  const taxa = oferta && centavos && centavosReais !== null ? tetoDaFaixa(oferta.faixas as Faixa[], centavosReais, Number(prazo)) : null;
 
   if (!apto) return <p className="aviso aviso--erro">Ainda não dá para gerar contrato: {motivo}</p>;
   if (!ativas.length) return <p className="aviso aviso--erro">Nenhuma oferta ativa. Ative uma em Ofertas e lastro.</p>;
   return (
-    <form className="novo-contrato" onSubmit={(e) => { e.preventDefault(); if (oferta && taxa) criar.mutate({ investidorId, ofertaId: oferta.id, principalCentavos: centavos, prazoMeses: Number(prazo), observacoes: obs || undefined, reservaId: reserva && reserva.ofertaId === oferta.id ? reserva.id : undefined }); }}>
+    <form className="novo-contrato" onSubmit={(e) => { e.preventDefault(); if (oferta && taxa) criar.mutate({ investidorId, ofertaId: oferta.id, principalCentavos: centavos, moeda, numeroCcb: numeroCcb || undefined, prazoMeses: Number(prazo), observacoes: obs || undefined, reservaId: reserva && reserva.ofertaId === oferta.id ? reserva.id : undefined }); }}>
       <label className="campo-form">Oferta
         <select value={oferta?.id ?? ""} onChange={(e) => setOfertaId(Number(e.target.value))}>
           {ativas.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
         </select>
       </label>
-      <label className="campo-form">Valor do aporte (R$)
+      <label className="campo-form">Moeda
+        <select value={moeda} onChange={(e) => setMoeda(e.target.value as Moeda)}>
+          {MOEDAS.map((m) => <option key={m} value={m}>{MOEDA_ROTULO[m]}</option>)}
+        </select>
+      </label>
+      <label className="campo-form">Valor da aplicação ({moeda === "USD" ? "US$" : "R$"})
         <input value={valor} onChange={(e) => setValor(e.target.value)} inputMode="decimal" placeholder="100.000,00" required />
+      </label>
+      <label className="campo-form">Número da CCB (opcional)
+        <input value={numeroCcb} onChange={(e) => setNumeroCcb(e.target.value)} maxLength={64} placeholder="CCB-2026-0001" />
       </label>
       <label className="campo-form">Prazo
         <select value={prazo} onChange={(e) => setPrazo(e.target.value)}>
@@ -77,13 +92,30 @@ function NovoContrato({ investidorId, apto, motivo, reserva }: { investidorId: n
       </label>
       <div className="novo-contrato__taxa">
         <span>Taxa pela faixa</span>
-        <strong className="num">{taxa !== null ? `${formatarPct(taxa)} a.m.` : centavos ? "fora das faixas" : "–"}</strong>
+        <strong className="num">{taxa !== null ? `${formatarPct(taxa)} a.m.` : moeda === "USD" && centavos && !cotacao ? "registre a cotação" : centavos ? "fora das faixas" : "–"}</strong>
+        {moeda === "USD" && cotacao && centavosReais !== null && <small>≈ {formatarBRL(centavosReais)} pela {cotacao.fonte} de {data(cotacao.data)}</small>}
       </div>
       <label className="campo-form novo-contrato__obs">Observações internas (opcional)
         <input value={obs} onChange={(e) => setObs(e.target.value)} />
       </label>
       {criar.error && <p className="aviso aviso--erro novo-contrato__obs">{criar.error.message}</p>}
       <button className="btn btn--primario" disabled={!taxa || criar.isPending}>{reserva ? "Gerar contrato da reserva" : "Gerar contrato"}</button>
+    </form>
+  );
+}
+
+/** Edita o número da CCB; a mudança vai para a auditoria com o valor anterior. */
+function NumeroCcb({ id, atual }: { id: number; atual: string | null }) {
+  const utils = trpc.useUtils();
+  const [v, setV] = useState(atual ?? "");
+  const salvar = trpc.admin.contratos.atualizarIdentificacao.useMutation({ onSuccess: () => void utils.admin.investidores.detalhe.invalidate() });
+  return (
+    <form className="acoes-inline" onSubmit={(e) => { e.preventDefault(); salvar.mutate({ id, numeroCcb: v.trim() || null }); }}>
+      <label className="campo-form campo-form--inline">Número da CCB
+        <input value={v} onChange={(e) => setV(e.target.value)} maxLength={64} placeholder="ainda sem número" />
+      </label>
+      <button className="btn btn--ghost btn--peq" disabled={salvar.isPending || v === (atual ?? "")}>Salvar</button>
+      {salvar.isSuccess && v === (atual ?? "") && <span className="bloco__nota">salvo</span>}
     </form>
   );
 }
@@ -168,10 +200,11 @@ function Ficha({ id, onFechar }: { id: number; onFechar: () => void }) {
       {d.contratos.map((c) => (
         <div key={c.id} className="ficha__contrato">
           <div className="ficha__contrato-cab">
-            <strong>#{c.id} · {formatarBRL(c.principalCentavos)} · {formatarPct(c.taxaMensal)} a.m. · {c.prazoMeses}m</strong>
+            <strong>#{c.id}{c.numeroCcb ? ` · CCB ${c.numeroCcb}` : ""} · {formatarMoeda(c.principalCentavos, c.moeda)} · {formatarPct(c.taxaMensal)} a.m. · {c.prazoMeses}m</strong>
             <span className={`status ${c.status === "ativo" ? "status--adimplente" : c.status === "cancelado" ? "status--atraso" : "status--alerta"}`}>{c.statusRotulo}</span>
           </div>
-          {c.status === "ativo" && <span className="bloco__det">{data(c.inicio)} a {data(c.vencimento)} · disponível {formatarBRL(c.disponivelCentavos)} · resgatado {formatarBRL(c.resgatadoCentavos)}</span>}
+          {c.status === "ativo" && <span className="bloco__det">{data(c.inicio)} a {data(c.vencimento)} · disponível {formatarMoeda(c.disponivelCentavos, c.moeda)} · resgatado {formatarMoeda(c.resgatadoCentavos, c.moeda)}</span>}
+          <NumeroCcb id={c.id} atual={c.numeroCcb} />
           <AcoesContrato c={c} />
         </div>
       ))}

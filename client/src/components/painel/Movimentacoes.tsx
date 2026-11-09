@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { trpc, type Saidas } from "@/lib/trpc";
-import { formatarBRL, formatarPct } from "~shared/finance";
+import { formatarPct } from "~shared/finance";
+import { formatarMoeda } from "~shared/moeda";
 import { RESGATE_ANTECIPADO } from "~shared/lastroGraos";
 
 type Painel = Saidas["investidor"]["painel"];
@@ -117,13 +118,13 @@ export function ModalDeposito({ onFechar, contratoInicial }: { onFechar: () => v
           {abertos.length > 1 && (
             <label className="campo-form">Contrato
               <select value={c.id} onChange={(e) => setContratoId(Number(e.target.value))}>
-                {abertos.map((x) => <option key={x.id} value={x.id}>#{x.id} · {x.codigo ?? x.oferta} · {formatarBRL(x.principalCentavos)}</option>)}
+                {abertos.map((x) => <option key={x.id} value={x.id}>#{x.id} · {x.codigo ?? x.oferta} · {formatarMoeda(x.principalCentavos, x.moeda)}</option>)}
               </select>
             </label>
           )}
           <div className="deposito__valor">
             <span>Valor do aporte</span>
-            <strong className="num">{formatarBRL(c.principalCentavos)}</strong>
+            <strong className="num">{formatarMoeda(c.principalCentavos, c.moeda)}</strong>
             <small>Contrato #{c.id} · {c.oferta} · {formatarPct(c.taxaMensal)} a.m. · {c.prazoMeses} meses</small>
           </div>
           <dl className="deposito__conta">
@@ -172,24 +173,24 @@ export function FormResgate({ c, habilitado, previsto, onFeito }: { c: ContratoP
   if (!habilitado) return <p className="bloco__nota">Saques abrem quando o emissor parceiro estiver habilitado na plataforma.</p>;
   if (c.saquePrincipal) return <p className="bloco__nota">Há um saque do principal em andamento neste contrato. Ele já inclui o rendimento.</p>;
   if (pedir.isSuccess) {
-    return <p className="aviso aviso--ok">Pedido enviado. Previsão de pagamento: {dataBR(pedir.data.previstoPara)}, valor líquido {formatarBRL(pedir.data.liquidoCentavos)}.</p>;
+    return <p className="aviso aviso--ok">Pedido enviado. Previsão de pagamento: {dataBR(pedir.data.previstoPara)}, valor líquido {formatarMoeda(pedir.data.liquidoCentavos, c.moeda)}.</p>;
   }
   return (
     <form className="resgate" onSubmit={(e) => { e.preventDefault(); if (valido) pedir.mutate({ contratoId: c.id, valorCentavos: centavos, idempotencyKey: chave }); }}>
       <label className="campo-form">
         Valor bruto a sacar
         <div className="resgate__linha">
-          <span>R$</span>
+          <span>{c.moeda === "USD" ? "US$" : "R$"}</span>
           <input value={valor} inputMode="decimal" placeholder="0,00" onChange={(e) => setValor(e.target.value)} aria-describedby={`resgate-max-${c.id}`} />
           <button type="button" className="btn btn--ghost btn--peq" onClick={() => setValor((c.disponivelCentavos / 100).toFixed(2).replace(".", ","))}>Tudo</button>
         </div>
       </label>
-      <span id={`resgate-max-${c.id}`} className="bloco__nota">Rendimento disponível: {formatarBRL(c.disponivelCentavos)}</span>
+      <span id={`resgate-max-${c.id}`} className="bloco__nota">Rendimento disponível: {formatarMoeda(c.disponivelCentavos, c.moeda)}</span>
       {centavos > c.disponivelCentavos && <p className="aviso aviso--erro">Acima do disponível.</p>}
       {valido && previa.data && (
         <dl className="resgate__previa">
-          <div><dt>IR retido ({formatarPct(previa.data.aliquota, 1)})</dt><dd className="num">− {formatarBRL(previa.data.irCentavos)}</dd></div>
-          <div><dt>Você recebe</dt><dd className="num"><strong>{formatarBRL(previa.data.liquidoCentavos)}</strong></dd></div>
+          <div><dt>IR retido ({formatarPct(previa.data.aliquota, 1)})</dt><dd className="num">− {formatarMoeda(previa.data.irCentavos, c.moeda)}</dd></div>
+          <div><dt>Você recebe</dt><dd className="num"><strong>{formatarMoeda(previa.data.liquidoCentavos, c.moeda)}</strong></dd></div>
           <div><dt>Previsão</dt><dd>{dataBR(previsto)}</dd></div>
         </dl>
       )}
@@ -209,7 +210,7 @@ export function SaquePrincipal({ c, habilitado, onFeito }: { c: ContratoPainel; 
     const s = c.saquePrincipal;
     return (
       <p className="aviso aviso--ok">
-        Saque do principal {s.status === "aprovado" ? "aprovado" : "solicitado"}: {formatarBRL(s.liquidoCentavos)} líquidos, previsto para {dataBR(s.previstoPara)}.
+        Saque do principal {s.status === "aprovado" ? "aprovado" : "solicitado"}: {formatarMoeda(s.liquidoCentavos, c.moeda)} líquidos, previsto para {dataBR(s.previstoPara)}.
       </p>
     );
   }
@@ -225,12 +226,12 @@ export function SaquePrincipal({ c, habilitado, onFeito }: { c: ContratoPainel; 
           : "Contrato no vencimento: a Rio recompra os títulos e você recebe o saldo inteiro."}
       </p>
       <dl className="resgate__previa">
-        <div><dt>Saldo hoje (principal + juros não sacados)</dt><dd className="num">{formatarBRL(p.saldoCentavos)}</dd></div>
-        {p.rendimentoSacadoCentavos > 0 && <div><dt>Juros já sacados (descontados)</dt><dd className="num">{formatarBRL(p.rendimentoSacadoCentavos)}</dd></div>}
-        {antecipado && <div><dt>Penalidade</dt><dd className="num">− {formatarBRL(p.penalidadeCentavos)}</dd></div>}
-        <div><dt>Valor bruto do saque</dt><dd className="num">{formatarBRL(p.brutoCentavos)}</dd></div>
-        <div><dt>IR retido ({formatarPct(p.aliquotaIR, 1)})</dt><dd className="num">− {formatarBRL(p.irCentavos)}</dd></div>
-        <div><dt>Você recebe</dt><dd className="num"><strong>{formatarBRL(p.liquidoCentavos)}</strong></dd></div>
+        <div><dt>Saldo hoje (principal + juros não sacados)</dt><dd className="num">{formatarMoeda(p.saldoCentavos, c.moeda)}</dd></div>
+        {p.rendimentoSacadoCentavos > 0 && <div><dt>Juros já sacados (descontados)</dt><dd className="num">{formatarMoeda(p.rendimentoSacadoCentavos, c.moeda)}</dd></div>}
+        {antecipado && <div><dt>Penalidade</dt><dd className="num">− {formatarMoeda(p.penalidadeCentavos, c.moeda)}</dd></div>}
+        <div><dt>Valor bruto do saque</dt><dd className="num">{formatarMoeda(p.brutoCentavos, c.moeda)}</dd></div>
+        <div><dt>IR retido ({formatarPct(p.aliquotaIR, 1)})</dt><dd className="num">− {formatarMoeda(p.irCentavos, c.moeda)}</dd></div>
+        <div><dt>Você recebe</dt><dd className="num"><strong>{formatarMoeda(p.liquidoCentavos, c.moeda)}</strong></dd></div>
         <div><dt>Previsão</dt><dd>{dataBR(p.previstoPara)} ({antecipado ? `D+${RESGATE_ANTECIPADO.liquidacaoDias}` : `D+${p.prazoPagamentoDias}`})</dd></div>
       </dl>
       <label className="cad-declaracao">
@@ -285,7 +286,7 @@ export function ModalSaque({ painel, onFechar, contratoInicial }: { painel: Pain
           {ativos.length > 1 && (
             <label className="campo-form" style={{ marginBottom: 16 }}>Contrato
               <select value={c.id} onChange={(e) => setId(Number(e.target.value))}>
-                {ativos.map((x) => <option key={x.id} value={x.id}>#{x.id} · {x.ofertaCodigo ?? x.oferta} · saldo {formatarBRL(x.saldoCentavos)}</option>)}
+                {ativos.map((x) => <option key={x.id} value={x.id}>#{x.id} · {x.ofertaCodigo ?? x.oferta} · saldo {formatarMoeda(x.saldoCentavos, x.moeda)}</option>)}
               </select>
             </label>
           )}
@@ -312,8 +313,8 @@ export function TabelaMovimentacoes() {
             <tr key={m.chave}>
               <td className="num">{dataBR(m.data)}</td>
               <td><strong>{m.rotulo}</strong><span className="sub">Contrato #{m.contratoId} · {m.oferta}{m.detalhe ? ` · ${m.detalhe}` : ""}</span></td>
-              <td className={`dir num ${m.valorCentavos > 0 ? "pos-texto" : ""}`}>{m.valorCentavos > 0 ? "+" : "−"} {formatarBRL(Math.abs(m.valorCentavos))}</td>
-              <td className="dir num">{formatarBRL(Math.abs(m.liquidoCentavos))}</td>
+              <td className={`dir num ${m.valorCentavos > 0 ? "pos-texto" : ""}`}>{m.valorCentavos > 0 ? "+" : "−"} {formatarMoeda(Math.abs(m.valorCentavos), m.moeda)}</td>
+              <td className="dir num">{formatarMoeda(Math.abs(m.liquidoCentavos), m.moeda)}</td>
               <td>
                 <span className={`status ${CLASSE_MOV[m.status] ?? "status--alerta"}`}>{m.statusRotulo}</span>
                 {m.previstoPara && m.status !== "pago" && m.status !== "recusado" && <span className="sub">previsto {dataBR(m.previstoPara)}</span>}

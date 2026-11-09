@@ -49,25 +49,25 @@ const escapar = (s: string) =>
 
 function envelope(conteudo: string, comAvisoRisco = false) {
   return `
-  <div style="font-family:Georgia,serif;max-width:520px;margin:0 auto;color:#142322;padding:8px">
-    <p style="font-size:20px;color:#0d2a2b;margin:0 0 24px">RioRende<em style="color:#c0673a">Fácil</em></p>
+  <div style="font-family:Helvetica,Arial,sans-serif;max-width:520px;margin:0 auto;color:#0e1a2b;padding:8px">
+    <p style="font-size:20px;font-weight:700;color:#0b1f3a;margin:0 0 24px"><span style="font-size:11px;letter-spacing:2px;color:#586579">CCB</span> Rio <span style="color:#7f6020">Bank</span></p>
     ${conteudo}
-    ${comAvisoRisco ? `<p style="margin-top:28px;font-size:12px;color:#5a6b68;font-family:Arial,sans-serif">${AVISO_RISCO}</p>` : ""}
-    <p style="margin-top:28px;font-size:12px;color:#5a6b68;font-family:Arial,sans-serif">
+    ${comAvisoRisco ? `<p style="margin-top:28px;font-size:12px;color:#586579;font-family:Arial,sans-serif">${AVISO_RISCO}</p>` : ""}
+    <p style="margin-top:28px;font-size:12px;color:#586579;font-family:Arial,sans-serif">
       Plataforma de tecnologia. Não somos banco nem emissor.
     </p>
   </div>`;
 }
 
 const botao = (href: string, texto: string) =>
-  `<p style="margin:28px 0"><a href="${href}" style="background:#c0673a;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold">${escapar(texto)}</a></p>`;
+  `<p style="margin:28px 0"><a href="${href}" style="background:#0b1f3a;color:#fff;padding:12px 22px;border-radius:999px;text-decoration:none;font-family:Arial,sans-serif;font-weight:bold">${escapar(texto)}</a></p>`;
 
 export function emailLinkAcesso(link: string, minutos: number) {
   return envelope(`
     <h1 style="font-size:22px;font-weight:normal">Seu link de acesso</h1>
     <p>Clique no botão para entrar. O link vale por ${minutos} minutos e só funciona uma vez.</p>
-    ${botao(link, "Entrar no RioRendeFácil")}
-    <p style="font-size:13px;color:#5a6b68">Se não foi você que pediu, ignore este e-mail. Ninguém entra sem acesso à sua caixa de entrada.</p>
+    ${botao(link, "Entrar no CCB Rio Bank")}
+    <p style="font-size:13px;color:#586579">Se não foi você que pediu, ignore este e-mail. Ninguém entra sem acesso à sua caixa de entrada.</p>
   `);
 }
 

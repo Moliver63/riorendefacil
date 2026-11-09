@@ -1,7 +1,7 @@
 /**
  * Configuração do emissor parceiro.
  *
- * O RioRendeFácil é a camada de tecnologia. Quem emite as CCBs, custodia os
+ * O CCB Rio Bank é a camada de tecnologia. Quem emite as CCBs, custodia os
  * recursos e responde pela oferta é o emissor licenciado.
  *
  * Enquanto `autorizado` for false, a interface NÃO exibe nome, logo nem marca

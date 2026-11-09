@@ -35,6 +35,7 @@ Papéis: `investidor`, `assessor`, `admin`. "Equipe" = assessor ou admin.
 | `/admin/auditoria` | `pages/AdminAuditoria.tsx` | admin |
 | `/admin/investidores` | `pages/AdminInvestidores.tsx` | admin |
 | `/admin/movimentacoes` | `pages/AdminMovimentacoes.tsx` | admin |
+| `/admin/cotacoes` | `pages/AdminCotacoes.tsx` | admin |
 | `/admin/resgates` | `pages/AdminResgates.tsx` | admin (só saques de rendimento) |
 | `/admin/operacoes` | `pages/AdminOperacoes.tsx` | admin |
 | qualquer outra | `pages/NotFound.tsx` | público |
@@ -154,6 +155,10 @@ Leitura é `query` (GET), escrita é `mutation` (POST). Formato superjson.
 | `admin.conta.lancar` | mutation | admin | custos, margem da Rio (limitada pela ordem de pagamento), principal devolvido, ajuste |
 | `admin.depositos.listar` / `confirmar` / `recusar` | query / mutation | admin | depósitos informados; confirmar ativa o contrato |
 | `admin.saquesPrincipal.listar` / `aprovar` / `marcarPago` / `recusar` | query / mutation | admin | saques do principal; pago encerra o contrato |
+| `admin.cotacoes.listar` | query | admin | cotação em uso e histórico |
+| `admin.cotacoes.registrar` | mutation | admin | cotação manual com data e fonte (auditoria com valor anterior) |
+| `admin.cotacoes.importarPtax` | mutation | admin | PTAX de venda do Banco Central |
+| `admin.contratos.atualizarIdentificacao` | mutation | admin | número da CCB (auditoria com valor anterior) |
 | `admin.resgates.listar` | query | admin | pedidos com conta de destino |
 | `admin.resgates.aprovar` | mutation | admin | solicitado → aprovado |
 | `admin.resgates.marcarPago` | mutation | admin | aprovado → pago, avisa o investidor |

@@ -17,7 +17,7 @@ Isto é um roteiro de perguntas, não parecer jurídico. Validar tudo com advoga
 3. A plataforma precisa de algum registro próprio sendo só fornecedora de tecnologia?
 4. Obrigações de PLD/KYC: de quem é cada responsabilidade, emissor ou plataforma?
 5. Uso do termo "Bank" no nome do emissor: há risco que contamine a plataforma?
-6. O nome "RioRendeFácil" pode ser lido como promessa de rentabilidade?
+6. O nome "CCB Rio Bank" (antes "RioRendeFácil"): "Bank" no nome de uma plataforma que não é instituição autorizada pelo Banco Central é permitido? Precisa de autorização da Rio para a marca?
 
 ## Ponto de atenção sobre a marca
-O revisor de comunicação alerta "rende fácil" como afirmação sobre o produto. O próprio nome da marca carrega essa expressão. Vale decidir com o jurídico antes de investir em identidade.
+Desde a sessão 10 a marca exibida é "CCB Rio Bank". Só instituição autorizada pelo Banco Central pode se apresentar como banco; a plataforma diz em todo rodapé e no FAQ que, apesar do nome, não é banco, corretora nem emissor. O uso de "Rio Bank" depende de autorização escrita do titular da marca e de parecer do jurídico antes de publicar.

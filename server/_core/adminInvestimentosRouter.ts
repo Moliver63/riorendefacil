@@ -9,9 +9,11 @@ import { router, adminProcedure } from "./trpc";
 import { db } from "../db";
 import { cadastros, contratos, investidores, ofertas, reservas, resgatesRendimento, usuarios } from "../schema";
 import { carregarEmissor, pendenciasParaCaptar } from "../../shared/issuer";
+import { formatarMoeda, MOEDAS } from "../../shared/moeda";
+import { emReaisDoContrato, exigirReais, ultimaCotacao } from "../cotacaoService";
 import { tetoDaFaixa, formatarBRL, formatarPct, type Faixa } from "../../shared/finance";
 import { mascararCpf } from "../../shared/cadastro";
-import { auditar } from "../auditoria";
+import { auditar, diferencas } from "../auditoria";
 import { cadastroRevelado, getCadastro, qualificacaoDoCadastro } from "../cadastroService";
 import {
   STATUS_CONTRATO_ROTULO,
@@ -57,8 +59,8 @@ export async function ativarContrato(p: { contratoId: number; inicio: string; co
   await lancar({
     ofertaId: c.ofertaId,
     tipo: "aporte",
-    valorCentavos: c.principalCentavos,
-    descricao: `Aporte do contrato #${c.id}`,
+    valorCentavos: await emReaisDoContrato(c, c.principalCentavos),
+    descricao: `Aporte do contrato #${c.id}${c.moeda === "BRL" ? "" : ` (${formatarMoeda(c.principalCentavos, c.moeda)})`}`,
     data: p.inicio,
     contratoId: c.id,
     comprovanteChave: p.comprovanteChave ?? undefined,
@@ -166,6 +168,8 @@ export const investimentosRoutes = {
           email: usuarios.email,
           oferta: ofertas.nome,
           principalCentavos: contratos.principalCentavos,
+          moeda: contratos.moeda,
+          numeroCcb: contratos.numeroCcb,
           taxaMensal: contratos.taxaMensal,
           prazoMeses: contratos.prazoMeses,
           status: contratos.status,
@@ -193,6 +197,8 @@ export const investimentosRoutes = {
           investidorId: z.number().int(),
           ofertaId: z.number().int(),
           principalCentavos: z.number().int().min(100_00),
+          moeda: z.enum(MOEDAS).default("BRL"),
+          numeroCcb: z.string().trim().max(64).optional(),
           prazoMeses: z.number().int().refine(prazoValido, "O prazo deve ser de 12, 24 ou 36 meses."),
           observacoes: z.string().max(2000).optional(),
           reservaId: z.number().int().optional(),
@@ -211,12 +217,15 @@ export const investimentosRoutes = {
         const cad = await getCadastro(inv.id);
         if (!cad) throw new TRPCError({ code: "PRECONDITION_FAILED", message: "O investidor ainda não completou o cadastro." });
 
-        const taxa = tetoDaFaixa(o.faixas as Faixa[], input.principalCentavos, input.prazoMeses);
+        // faixas e cobertura são em reais; aplicação em dólar entra pela cotação mais recente
+        const cotacao = input.moeda === "USD" ? await ultimaCotacao("USD") : null;
+        const principalReais = exigirReais(input.principalCentavos, input.moeda, cotacao);
+        const taxa = tetoDaFaixa(o.faixas as Faixa[], principalReais, input.prazoMeses);
         if (taxa === null) throw new TRPCError({ code: "BAD_REQUEST", message: "Valor ou prazo fora das faixas desta oferta." });
         if (input.prazoMeses * 30 < o.carenciaPrincipalDias) {
           throw new TRPCError({ code: "BAD_REQUEST", message: `Prazo menor que a carência do principal (${o.carenciaPrincipalDias} dias).` });
         }
-        await exigirCoberturaParaNovoPrincipal(o.id, input.principalCentavos);
+        await exigirCoberturaParaNovoPrincipal(o.id, principalReais);
 
         const [c] = await db
           .insert(contratos)
@@ -224,6 +233,8 @@ export const investimentosRoutes = {
             investidorId: inv.id,
             ofertaId: o.id,
             principalCentavos: input.principalCentavos,
+            moeda: input.moeda,
+            numeroCcb: input.numeroCcb || null,
             taxaMensal: taxa.toFixed(6),
             prazoMeses: input.prazoMeses,
             status: "aguardando_assinatura",
@@ -243,7 +254,7 @@ export const investimentosRoutes = {
           acao: "contrato_criado",
           entidade: "contrato",
           entidadeId: c!.id,
-          dados: { investidorId: inv.id, principal: input.principalCentavos, taxa, prazo: input.prazoMeses },
+          dados: { investidorId: inv.id, principal: input.principalCentavos, moeda: input.moeda, numeroCcb: input.numeroCcb ?? null, taxa, prazo: input.prazoMeses, ...(cotacao ? { cotacao } : {}) },
           ip: ctx.ip,
         });
         const dest = await emailDoInvestidor(inv.id);
@@ -299,6 +310,17 @@ export const investimentosRoutes = {
       }),
 
     extrato: adminProcedure.input(idSchema).query(async ({ input }) => extratoDoContrato(await getContrato(input.id))),
+
+    /** Identificação da CCB e observações. Valores e taxa não mudam depois de criado. */
+    atualizarIdentificacao: adminProcedure
+      .input(z.object({ id: z.number().int(), numeroCcb: z.string().trim().max(64).nullable() }))
+      .mutation(async ({ ctx, input }) => {
+        const c = await getContrato(input.id);
+        const depois = { numeroCcb: input.numeroCcb || null };
+        await db.update(contratos).set(depois).where(eq(contratos.id, c.id));
+        await auditar({ atorId: ctx.usuario.id, acao: "contrato_identificacao", entidade: "contrato", entidadeId: c.id, dados: { alteracoes: diferencas(c, depois) }, ip: ctx.ip });
+        return { ok: true as const };
+      }),
   }),
 
   // ─── Resgates ──────────────────────────────────────────────────────────────
@@ -361,8 +383,8 @@ export const investimentosRoutes = {
         await lancar({
           ofertaId: c.ofertaId,
           tipo: "pagamento_rendimento",
-          valorCentavos: r.valorCentavos,
-          descricao: `Rendimento do contrato #${c.id} (líquido ${formatarBRL(r.valorCentavos - Number(r.irRetidoCentavos))} + IR ${formatarBRL(Number(r.irRetidoCentavos))})`,
+          valorCentavos: await emReaisDoContrato(c, r.valorCentavos),
+          descricao: `Rendimento do contrato #${c.id} (líquido ${formatarMoeda(r.valorCentavos - Number(r.irRetidoCentavos), c.moeda)} + IR ${formatarMoeda(Number(r.irRetidoCentavos), c.moeda)})`,
           contratoId: c.id,
           resgateId: r.id,
           comprovanteChave: input.comprovanteChave,

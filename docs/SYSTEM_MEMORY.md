@@ -1,4 +1,4 @@
-# SYSTEM_MEMORY · RioRendeFácil
+# SYSTEM_MEMORY · CCB Rio Bank (repo riorendefacil)
 
 Ler este arquivo e os demais de `docs/` no início de toda sessão de trabalho.
 
@@ -94,9 +94,23 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - Sacar: rendimento (D+7, como antes) ou principal. Principal no vencimento paga o saldo em D+7; antes do vencimento aplica a regra de resgate antecipado (D+60) com valores congelados no pedido (shared/resgatePrincipal.ts). Ao marcar pago, o contrato fica "liquidado" e a saída entra na conta vinculada.
 - Tabelas novas: depositos, resgates_principal (migração 0004). 61 testes.
 
+## Sessão 10 · 09/11/2026 · CCB Rio Bank: nome, visual e aplicações em dólar
+
+- Deploy no Render caía com ECONNREFUSED no Postgres (banco free criado em 02/10 expirava em 01/11). Boot agora tenta 6 vezes com espera crescente e explica no log o que conferir (`server/db.ts`). Commit 6af08cf.
+- Pedido de Michel (prompt "CCB Rio Bank"): nome exibido passa a ser **CCB Rio Bank**. Visual azul-marinho, branco e dourado: tokens em `index.css` (`--cobre` virou o dourado, `--ouro-texto` para texto dourado em fundo claro), Manrope nos títulos, novo selo (barras douradas em degrau), favicon, e-mails e Tailwind. Repositório, cookie e domínio continuam `riorendefacil`.
+- Aplicações com moeda: `contratos.moeda` (BRL/USD) e `contratos.numero_ccb`; tabela `cotacoes` (valor, data, fonte). Migração 0005, só aditiva. Valores ficam na moeda da aplicação; conta vinculada, faixas e cobertura são em reais e convertem pela cotação mais recente (`server/cotacaoService.ts`). Dólar sem cotação trava criação e posição da oferta.
+- Admin › Cotações: registro manual ou importação da PTAX de venda (API Olinda do Banco Central). Auditoria guarda o valor anterior; a tela de auditoria mostra "campo: antes → depois", responsável e filtro por tipo. Ofertas, CCBs e número da CCB também gravam o anterior.
+- Painel: saldo atualizado em destaque, total investido, rendimento e rentabilidade acumulada (tudo em reais, com a cotação, data e fonte à vista); tabela "Minhas aplicações" com CCB, situação ativa/vencida/liquidada, valor em USD com equivalente em BRL; ficha da aplicação (emissora, moeda, taxa, emissão, vencimento, documentos); gráfico com filtro 3, 6, 12 meses ou contrato inteiro.
+- `MODO_CONSULTA=true` deixa a primeira versão só de consulta, como o prompt pede: esconde depósito, saque e reservas e o servidor recusa esses pedidos. Padrão continua false para não desfazer a sessão 09.
+- Fora desta rodada: autenticação em dois fatores, backup além do Render, apps nativos.
+- 71 testes.
+
 ## Pendências
 
 - Autorização formal de marca e contrato com o emissor; registro CVM do emissor.
+- Autorização escrita para "Rio Bank" e parecer sobre "Bank" no nome (ver COMPLIANCE.md).
+- Autenticação em dois fatores (pedido no prompt do CCB Rio Bank).
+- Agendar importação diária da PTAX (hoje é por botão no admin).
 - Parecer de advogado de mercado de capitais sobre oferta, publicidade e simulador.
 - KYC e PLD (provedor a escolher).
 - Assinatura digital (Clicksign, ZapSign ou D4Sign) integrada; hoje o admin marca como assinado.

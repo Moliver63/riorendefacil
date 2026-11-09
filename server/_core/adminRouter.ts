@@ -7,11 +7,12 @@ import { db } from "../db";
 import { auditoria, ccbs, documentos, investidores, leads, ofertas, pecasComunicacao, usuarios } from "../schema";
 import { PAPEIS, SETORES, SITUACOES_CCB, STATUS_LEAD } from "../../shared/const";
 import { avaliarTexto } from "../../shared/complianceGuard";
-import { auditar } from "../auditoria";
+import { auditar, diferencas } from "../auditoria";
 import { chaveDocumento, urlEnvio } from "../storage";
 import { investimentosRoutes } from "./adminInvestimentosRouter";
 import { lastroRoutes } from "./adminLastroRouter";
 import { movimentacoesRoutes } from "./adminMovimentacoesRouter";
+import { cotacoesRoutes } from "./adminCotacoesRouter";
 
 const faixaSchema = z.object({
   minimoCentavos: z.number().int().positive(),
@@ -26,6 +27,7 @@ export const adminRouter = router({
   ...lastroRoutes,
   // depósitos informados e saques do principal
   ...movimentacoesRoutes,
+  ...cotacoesRoutes,
 
   resumo: equipeProcedure.query(async () => {
     const seteDias = new Date(Date.now() - 7 * 86_400_000);
@@ -97,11 +99,12 @@ export const adminRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { id, coberturaMinima, ...resto } = input;
         const dados = { ...resto, ...(coberturaMinima !== undefined ? { coberturaMinima: coberturaMinima.toFixed(4) } : {}) };
+        const [antes] = id ? await db.select().from(ofertas).where(eq(ofertas.id, id)).limit(1) : [];
         const [o] = id
           ? await db.update(ofertas).set(dados).where(eq(ofertas.id, id)).returning()
           : await db.insert(ofertas).values(dados).returning();
         if (!o) throw new TRPCError({ code: "NOT_FOUND", message: "Oferta não encontrada." });
-        await auditar({ atorId: ctx.usuario.id, acao: id ? "oferta_editada" : "oferta_criada", entidade: "oferta", entidadeId: o.id, dados, ip: ctx.ip });
+        await auditar({ atorId: ctx.usuario.id, acao: id ? "oferta_editada" : "oferta_criada", entidade: "oferta", entidadeId: o.id, dados: id ? { alteracoes: diferencas(antes, dados) } : dados, ip: ctx.ip });
         return o;
       }),
     ativar: adminProcedure.input(z.object({ id: z.number().int(), ativa: z.boolean() })).mutation(async ({ ctx, input }) => {
@@ -140,11 +143,12 @@ export const adminRouter = router({
       .mutation(async ({ ctx, input }) => {
         const { id, ...dados } = input;
         const valores = { ...dados, atualizadoEm: new Date() };
+        const [antes] = id ? await db.select().from(ccbs).where(eq(ccbs.id, id)).limit(1) : [];
         const [c] = id
           ? await db.update(ccbs).set(valores).where(eq(ccbs.id, id)).returning()
           : await db.insert(ccbs).values(valores).returning();
         if (!c) throw new TRPCError({ code: "NOT_FOUND", message: "CCB não encontrada." });
-        await auditar({ atorId: ctx.usuario.id, acao: id ? "ccb_editada" : "ccb_criada", entidade: "ccb", entidadeId: c.id, dados, ip: ctx.ip });
+        await auditar({ atorId: ctx.usuario.id, acao: id ? "ccb_editada" : "ccb_criada", entidade: "ccb", entidadeId: c.id, dados: id ? { alteracoes: diferencas(antes, dados) } : dados, ip: ctx.ip });
         return c;
       }),
   }),
@@ -237,8 +241,19 @@ export const adminRouter = router({
     .input(z.object({ entidade: z.string().max(64).optional() }).default({}))
     .query(({ input }) =>
       db
-        .select()
+        .select({
+          id: auditoria.id,
+          acao: auditoria.acao,
+          entidade: auditoria.entidade,
+          entidadeId: auditoria.entidadeId,
+          dados: auditoria.dados,
+          ip: auditoria.ip,
+          criadoEm: auditoria.criadoEm,
+          atorId: auditoria.atorId,
+          atorEmail: usuarios.email,
+        })
         .from(auditoria)
+        .leftJoin(usuarios, eq(usuarios.id, auditoria.atorId))
         .where(input.entidade ? and(eq(auditoria.entidade, input.entidade)) : undefined)
         .orderBy(desc(auditoria.criadoEm))
         .limit(200),

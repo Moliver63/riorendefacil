@@ -24,7 +24,7 @@ export async function criarLinkAcesso(emailBruto: string, ip: string): Promise<s
     ip: ip.slice(0, 64),
   });
   const link = `${ENV.appUrl}/api/auth/link?t=${encodeURIComponent(token)}`;
-  await enviarEmail({ para: email, assunto: "Seu link de acesso ao RioRendeFácil", html: emailLinkAcesso(link, LINK_ACESSO_MINUTOS) });
+  await enviarEmail({ para: email, assunto: "Seu link de acesso ao CCB Rio Bank", html: emailLinkAcesso(link, LINK_ACESSO_MINUTOS) });
   return link;
 }
 

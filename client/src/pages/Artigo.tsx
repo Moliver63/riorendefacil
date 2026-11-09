@@ -22,7 +22,7 @@ export default function Artigo({ params }: { params: { slug: string } }) {
             headline: a.titulo,
             description: a.resumo,
             datePublished: a.publicadoEm,
-            publisher: { "@type": "Organization", name: "RioRendeFácil" },
+            publisher: { "@type": "Organization", name: "CCB Rio Bank" },
           }),
         }}
       />

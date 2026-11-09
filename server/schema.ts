@@ -406,6 +406,10 @@ export const contratos = pgTable(
     ofertaId: integer("oferta_id")
       .notNull()
       .references(() => ofertas.id),
+    /** Valores do contrato ficam em centavos desta moeda (BRL ou USD). */
+    moeda: varchar("moeda", { length: 3 }).notNull().default("BRL"),
+    /** Número ou identificação da CCB que formaliza a aplicação. */
+    numeroCcb: varchar("numero_ccb", { length: 64 }),
     principalCentavos: bigint("principal_centavos", { mode: "number" }).notNull(),
     taxaMensal: numeric("taxa_mensal", { precision: 8, scale: 6 }).notNull(),
     prazoMeses: integer("prazo_meses").notNull(),
@@ -473,6 +477,22 @@ export const documentos = pgTable(
 );
 
 /** Trilha de auditoria append-only. */
+/** Cotações cambiais usadas na conversão para real, sempre com data e fonte. */
+export const cotacoes = pgTable(
+  "cotacoes",
+  {
+    id: serial("id").primaryKey(),
+    moeda: varchar("moeda", { length: 3 }).notNull(),
+    /** reais por 1 unidade da moeda */
+    valor: numeric("valor", { precision: 12, scale: 6 }).notNull(),
+    data: date("data").notNull(),
+    fonte: varchar("fonte", { length: 120 }).notNull(),
+    registradoPor: integer("registrado_por").references(() => usuarios.id),
+    criadoEm: timestamp("criado_em", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => ({ moedaDataIdx: uniqueIndex("cotacoes_moeda_data_fonte_idx").on(t.moeda, t.data, t.fonte) }),
+);
+
 export const auditoria = pgTable("auditoria", {
   id: serial("id").primaryKey(),
   atorId: integer("ator_id"),

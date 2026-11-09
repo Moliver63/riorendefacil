@@ -110,8 +110,8 @@ const FALA_DE_RENTABILIDADE = termo(
  * @param nomeMarca nome oficial da marca, removido antes da checagem para não
  *        acusar o próprio nome do produto
  */
-export function avaliarTexto(texto: string, nomeMarca = "RioRendeFácil"): ResultadoGuard {
-  const variantesMarca = [nomeMarca, nomeMarca.replace("á", "a"), "rio rende fácil", "rio rende facil"];
+export function avaliarTexto(texto: string, nomeMarca = "CCB Rio Bank"): ResultadoGuard {
+  const variantesMarca = [nomeMarca, nomeMarca.replace("á", "a"), "RioRendeFácil", "rio rende fácil", "rio rende facil"];
   let limpo = texto;
   for (const v of variantesMarca) {
     limpo = limpo.replace(new RegExp(v.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "giu"), " ");

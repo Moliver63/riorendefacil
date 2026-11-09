@@ -8,6 +8,7 @@ import { db } from "./db";
 import { ccbs, contratos, lancamentosConta, ofertas, operacoesGraos, type Oferta } from "./schema";
 import { diasDesde, resgatesDoContrato } from "./contratoService";
 import { saquePrincipalAberto } from "./movimentacoesService";
+import { exigirReais, ultimaCotacao } from "./cotacaoService";
 import { rendimentoAcumulado } from "../shared/finance";
 import { alocacaoDoContrato, coberturaProjetada, posicaoDaOferta, valorComSinal, valorElegivel, type TipoLancamento } from "../shared/lastroGraos";
 
@@ -71,11 +72,14 @@ export async function posicao(ofertaId: number, hoje = new Date()) {
     db.select().from(ccbs).where(eq(ccbs.ofertaId, ofertaId)).orderBy(asc(ccbs.codigo)),
     contratosDaOferta(ofertaId),
   ]);
+  // conta vinculada e garantias são em reais: aplicações em dólar entram pela cotação mais recente
+  const cotacao = cs.some((c) => c.moeda !== "BRL") ? await ultimaCotacao("USD") : null;
+  const reais = (centavos: number, moeda: string) => exigirReais(centavos, moeda, cotacao);
   let obrigacoes = 0;
   let principalAtivo = 0;
   for (const c of cs) {
     if (c.status !== "ativo") continue;
-    principalAtivo += c.principalCentavos;
+    principalAtivo += reais(c.principalCentavos, c.moeda);
     // saldo do investidor hoje (juros compostos, resgates fora) + resgates pedidos e ainda não pagos
     const rs = await resgatesDoContrato(c);
     const pendentes = rs.filter((r) => r.status !== "pago").reduce((t, r) => t + r.valorCentavos, 0);
@@ -84,9 +88,9 @@ export async function posicao(ofertaId: number, hoje = new Date()) {
     const saldo = saquePrincipal
       ? saquePrincipal.brutoCentavos
       : rendimentoAcumulado(c.principalCentavos, Number(c.taxaMensal), diasDesde(c.inicio, hoje), rs).saldoCentavos;
-    obrigacoes += saldo + pendentes;
+    obrigacoes += reais(saldo + pendentes, c.moeda);
   }
-  const principalComprometido = cs.reduce((s, c) => s + c.principalCentavos, 0);
+  const principalComprometido = cs.reduce((s, c) => s + reais(c.principalCentavos, c.moeda), 0);
   const pos = posicaoDaOferta({
     saldoContaCentavos: saldo,
     operacoes: ops,
@@ -117,8 +121,9 @@ export async function alocacao(contratoId: number) {
   const [c] = await db.select().from(contratos).where(eq(contratos.id, contratoId)).limit(1);
   if (!c || c.status !== "ativo") return [];
   const { posicao: p, operacoes, principalAtivoCentavos } = await posicao(c.ofertaId);
+  const cotacao = c.moeda !== "BRL" ? await ultimaCotacao("USD") : null;
   return alocacaoDoContrato({
-    principalContratoCentavos: c.principalCentavos,
+    principalContratoCentavos: exigirReais(c.principalCentavos, c.moeda, cotacao),
     principalTotalCentavos: principalAtivoCentavos,
     saldoContaCentavos: Math.max(0, p.saldoContaCentavos),
     operacoes,

@@ -97,7 +97,7 @@ export const ARTIGOS: Artigo[] = [
         paragrafos: [
           "Conta vinculada, ou conta escrow, é uma conta em nome da operação, movimentada por um administrador independente segundo regras definidas em contrato.",
           "O aporte do investidor e os pagamentos dos devedores transitam por ela. Isso evita que o dinheiro se misture ao caixa operacional de quem estrutura a operação.",
-          "No RioRendeFácil, nenhum valor passa pela plataforma. Registramos e mostramos as movimentações; quem liquida é a conta vinculada do emissor.",
+          "No CCB Rio Bank, nenhum valor passa pela plataforma. Registramos e mostramos as movimentações; quem liquida é a conta vinculada do emissor.",
         ],
       },
     ],
