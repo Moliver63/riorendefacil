@@ -57,11 +57,59 @@ const conexao = criarDb();
 export const db = conexao.db as unknown as ReturnType<typeof drizzlePg<typeof schema>>;
 export const tipoBanco = conexao.tipo;
 
+/** Erros de rede em que vale tentar de novo (banco reiniciando, acordando ou ainda subindo). */
+const ERROS_TRANSITORIOS = new Set(["ECONNREFUSED", "ECONNRESET", "ETIMEDOUT", "ENOTFOUND", "EAI_AGAIN", "57P03"]);
+
+export function erroTransitorio(e: unknown): boolean {
+  const codigo = (e as { code?: string })?.code;
+  if (codigo && ERROS_TRANSITORIOS.has(codigo)) return true;
+  const causa = (e as { cause?: unknown })?.cause;
+  return causa ? erroTransitorio(causa) : false;
+}
+
+/** Explica em português o que fazer quando o banco não responde. */
+export function diagnosticoBanco(e: unknown): string {
+  const codigo = (e as { code?: string })?.code ?? (e as { cause?: { code?: string } })?.cause?.code;
+  switch (codigo) {
+    case "ECONNREFUSED":
+      return "O endereço do banco respondeu, mas o Postgres recusou a conexão. No Render: confira se o banco está Available (não suspenso nem expirado), se está na mesma região do web service e se DATABASE_URL é a Internal Database URL do banco atual.";
+    case "ENOTFOUND":
+    case "EAI_AGAIN":
+      return "O nome do host do banco não existe. DATABASE_URL provavelmente aponta para um banco apagado: copie a Internal Database URL do banco atual pelo botão de copiar.";
+    case "28P01":
+      return "Usuário ou senha do banco incorretos. Cole de novo a Internal Database URL pelo botão de copiar, sem digitar.";
+    case "ETIMEDOUT":
+      return "O banco não respondeu a tempo. Confira se banco e web service estão na mesma região do Render.";
+    default:
+      return "Verifique DATABASE_URL e o status do Postgres no painel do Render.";
+  }
+}
+
+const esperar = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Tenta migrar algumas vezes com espera crescente antes de desistir (cerca de 1 minuto no total). */
+async function migrarComTentativas(tentativas = 6, esperaInicialMs = 2000): Promise<void> {
+  for (let i = 1; ; i++) {
+    try {
+      await conexao.migrar();
+      return;
+    } catch (e) {
+      if (conexao.tipo !== "postgres" || !erroTransitorio(e) || i >= tentativas) {
+        if (conexao.tipo === "postgres") console.error(`[db] banco indisponível: ${diagnosticoBanco(e)}`);
+        throw e;
+      }
+      const ms = Math.min(esperaInicialMs * 2 ** (i - 1), 20_000);
+      console.warn(`[db] banco não respondeu (${(e as { code?: string })?.code ?? "erro de rede"}), tentativa ${i}/${tentativas}; nova tentativa em ${ms / 1000}s`);
+      await esperar(ms);
+    }
+  }
+}
+
 let migrado: Promise<void> | null = null;
 /** Aplica migrações pendentes uma única vez por processo. */
 export function aplicarMigracoes(): Promise<void> {
   if (!migrado) {
-    migrado = conexao.migrar().then(() => {
+    migrado = migrarComTentativas().then(() => {
       if (!ENV.isTest) console.log(`[db] migrações aplicadas (${conexao.tipo})`);
     });
   }
