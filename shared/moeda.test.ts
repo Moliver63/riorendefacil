@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cotacaoDaPtax, formatarCurto, formatarMoeda, paraReais, rentabilidadeAcumulada, situacaoAplicacao } from "./moeda";
+import { cotacaoDaPtax, deReais, formatarCurto, formatarMoeda, paraReais, rentabilidadeAcumulada, situacaoAplicacao } from "./moeda";
 
 const semEspacoDuro = (s: string) => s.replace(/ /g, " ");
 
@@ -33,4 +33,10 @@ test("rentabilidade acumulada conta o rendimento já sacado", () => {
   const r = rentabilidadeAcumulada(1_000_000_00, 1_150_000_00, 50_000_00);
   assert.equal(r.rendimentoCentavos, 200_000_00);
   assert.equal(r.pct, 0.2);
+});
+
+test("total em reais vira dólar pela mesma cotação, e volta", () => {
+  assert.equal(deReais(543_210_00, "USD", { valor: 5.4321 }), 100_000_00);
+  assert.equal(deReais(543_210_00, "BRL", null), 543_210_00);
+  assert.equal(deReais(543_210_00, "USD", null), null);
 });

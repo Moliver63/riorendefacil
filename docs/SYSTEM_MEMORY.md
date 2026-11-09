@@ -101,9 +101,10 @@ Pedido do Michel: usar a arquitetura do MecProAI e montar as rotas em geral. Tud
 - Aplicações com moeda: `contratos.moeda` (BRL/USD) e `contratos.numero_ccb`; tabela `cotacoes` (valor, data, fonte). Migração 0005, só aditiva. Valores ficam na moeda da aplicação; conta vinculada, faixas e cobertura são em reais e convertem pela cotação mais recente (`server/cotacaoService.ts`). Dólar sem cotação trava criação e posição da oferta.
 - Admin › Cotações: registro manual ou importação da PTAX de venda (API Olinda do Banco Central). Auditoria guarda o valor anterior; a tela de auditoria mostra "campo: antes → depois", responsável e filtro por tipo. Ofertas, CCBs e número da CCB também gravam o anterior.
 - Painel: saldo atualizado em destaque, total investido, rendimento e rentabilidade acumulada (tudo em reais, com a cotação, data e fonte à vista); tabela "Minhas aplicações" com CCB, situação ativa/vencida/liquidada, valor em USD com equivalente em BRL; ficha da aplicação (emissora, moeda, taxa, emissão, vencimento, documentos); gráfico com filtro 3, 6, 12 meses ou contrato inteiro.
+- Seletor BRL | USD nos totais do painel: converte pela cotação mais recente (mostrada com data e fonte); a escolha fica no navegador. Rentabilidade continua a da moeda contratada de cada aplicação. Tabela e ficha seguem na moeda da aplicação.
 - `MODO_CONSULTA=true` deixa a primeira versão só de consulta, como o prompt pede: esconde depósito, saque e reservas e o servidor recusa esses pedidos. Padrão continua false para não desfazer a sessão 09.
 - Fora desta rodada: autenticação em dois fatores, backup além do Render, apps nativos.
-- 71 testes.
+- 72 testes.
 
 ## Pendências
 

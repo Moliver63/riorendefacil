@@ -140,7 +140,8 @@ export const investidorRouter = router({
     const e = carregarEmissor(process.env);
     const hoje = new Date();
     const hojeIso = hoje.toISOString().slice(0, 10);
-    const cotacao = lista.some(({ c }) => c.moeda !== "BRL") ? await ultimaCotacao("USD") : null;
+    // sempre enviada: converte as aplicações em dólar e permite ver a carteira toda em USD
+    const cotacao = lista.length ? await ultimaCotacao("USD") : null;
     const ids = lista.map(({ c }) => c.id);
     const docs = ids.length
       ? await db

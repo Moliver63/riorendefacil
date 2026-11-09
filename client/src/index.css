@@ -1783,3 +1783,11 @@ textarea { font: 400 15px/1.4 var(--sans); }
 .audit-mudancas s { color: var(--suave); }
 
 .sub--conv { white-space: nowrap; }
+.saldo-hero__topo { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.seletor-moeda { display: inline-flex; padding: 3px; border-radius: 999px; background: rgb(255 255 255 / 0.08); border: 1px solid rgb(255 255 255 / 0.12); }
+.seletor-moeda button { border: 0; background: transparent; color: var(--sobre-tinta-suave); font: 700 12px/1 var(--sans); letter-spacing: 0.06em; padding: 7px 12px; border-radius: 999px; cursor: pointer; min-width: 48px; }
+.seletor-moeda button.on { background: var(--cobre); color: var(--tinta); }
+.seletor-moeda button:disabled { opacity: 0.4; cursor: not-allowed; }
+.seletor-moeda button:focus-visible { outline: 2px solid var(--cobre); outline-offset: 2px; }
+.cotacao-nota--sem-selo::before { display: none; }
+.cotacao-nota--sem-selo { margin-top: -12px; }

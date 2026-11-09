@@ -43,6 +43,13 @@ export function paraReais(centavos: number, moeda: Moeda | string, cotacao: Pick
   return Math.round(centavos * cotacao.valor);
 }
 
+/** Leva centavos de real para a moeda pedida (para exibir totais em dólar). Sem cotação, null. */
+export function deReais(centavosReais: number, moeda: Moeda | string, cotacao: Pick<Cotacao, "valor"> | null | undefined): number | null {
+  if (moeda === "BRL") return centavosReais;
+  if (!cotacao || !(cotacao.valor > 0)) return null;
+  return Math.round(centavosReais / cotacao.valor);
+}
+
 /** Converte a cotação PTAX de venda do Banco Central (dataHoraCotacao "2026-11-06 13:09:28.123") em Cotacao. */
 export function cotacaoDaPtax(r: { cotacaoVenda: number; dataHoraCotacao: string }): Cotacao {
   return { moeda: "USD", valor: r.cotacaoVenda, data: r.dataHoraCotacao.slice(0, 10), fonte: "PTAX venda · Banco Central do Brasil" };

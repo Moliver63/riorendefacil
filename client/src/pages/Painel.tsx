@@ -5,7 +5,7 @@ import { SeloEmissor } from "@/components/landing/SiteLayout";
 import { trpc, type Saidas } from "@/lib/trpc";
 import { Seo } from "@/components/SEO";
 import { formatarBRL, formatarPct, taxaAnualEquivalente } from "~shared/finance";
-import { formatarMoeda, MOEDA_ROTULO, SITUACAO_ROTULO, type SituacaoAplicacao } from "~shared/moeda";
+import { deReais, formatarMoeda, MOEDA_ROTULO, SITUACAO_ROTULO, type Moeda, type SituacaoAplicacao } from "~shared/moeda";
 import { BarraAlocacao, type ChaveFatia } from "@/components/oferta/Ficha";
 import { EvolucaoPatrimonio } from "@/components/painel/EvolucaoPatrimonio";
 import { ModalDeposito, ModalSaque, PainelSaque, TabelaMovimentacoes } from "@/components/painel/Movimentacoes";
@@ -337,6 +337,26 @@ export default function Painel() {
   }, [contratos, ativos]);
   const consulta = painel.data?.modoConsulta ?? false;
 
+  // moeda de exibição dos totais; a escolha fica só neste navegador
+  const cotacao = painel.data?.cotacao ?? null;
+  const [visao, setVisao] = useState<Moeda>(() => {
+    try {
+      return localStorage.getItem("rrf_moeda_visao") === "USD" ? "USD" : "BRL";
+    } catch {
+      return "BRL";
+    }
+  });
+  const moedaVisao: Moeda = visao === "USD" && cotacao ? "USD" : "BRL";
+  const escolherVisao = (m: Moeda) => {
+    setVisao(m);
+    try {
+      localStorage.setItem("rrf_moeda_visao", m);
+    } catch {
+      /* navegador sem armazenamento: vale só nesta visita */
+    }
+  };
+  const tv = (centavosReais: number) => formatarMoeda(deReais(centavosReais, moedaVisao, cotacao) ?? centavosReais, moedaVisao);
+
   return (
     <AreaLogada
       titulo="Minha carteira"
@@ -365,22 +385,44 @@ export default function Painel() {
         <>
           <section className="saldo-hero" aria-label="Resumo da carteira">
             <div className="saldo-hero__principal">
-              <span>Saldo atualizado</span>
-              <strong className="num">{formatarBRL(totais.saldo)}</strong>
+              <div className="saldo-hero__topo">
+                <span>Saldo atualizado</span>
+                <div className="seletor-moeda" role="group" aria-label="Moeda dos totais">
+                  {(["BRL", "USD"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      aria-pressed={moedaVisao === m}
+                      className={moedaVisao === m ? "on" : ""}
+                      disabled={m === "USD" && !cotacao}
+                      title={m === "USD" && !cotacao ? "Disponível quando a cotação do dólar for registrada" : undefined}
+                      onClick={() => escolherVisao(m)}
+                    >
+                      {m}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <strong className="num">{tv(totais.saldo)}</strong>
               <small>{ativos.length} {ativos.length === 1 ? "aplicação ativa" : "aplicações ativas"} · atualizado em {data(painel.data?.hoje)}</small>
             </div>
             <dl className="saldo-hero__cards">
-              <div><dt>Total investido</dt><dd className="num">{formatarBRL(totais.investido)}</dd></div>
-              <div><dt>Rendimento</dt><dd className="num">{formatarBRL(totais.rendimento)}</dd></div>
+              <div><dt>Total investido</dt><dd className="num">{tv(totais.investido)}</dd></div>
+              <div><dt>Rendimento</dt><dd className="num">{tv(totais.rendimento)}</dd></div>
               <div><dt>Rentabilidade acumulada</dt><dd className="num saldo-hero__pct">+{formatarPct(totais.rentabilidade)}</dd></div>
             </dl>
           </section>
           <dl className="resumo-carteira resumo-carteira--sec">
-            <div><dt>Rendimento disponível</dt><dd className="num">{formatarBRL(totais.disponivel)}</dd><small>{consulta ? "saque com seu especialista" : `saque em D+${painel.data?.prazoResgateDias ?? 7}`}</small></div>
-            <div><dt>Juros nos próximos 30 dias</dt><dd className="num">{formatarBRL(totais.juros30)}</dd></div>
-            {totais.aguardando > 0 && <div><dt>Aguardando aporte</dt><dd className="num">{formatarBRL(totais.aguardando)}</dd></div>}
+            <div><dt>Rendimento disponível</dt><dd className="num">{tv(totais.disponivel)}</dd><small>{consulta ? "saque com seu especialista" : `saque em D+${painel.data?.prazoResgateDias ?? 7}`}</small></div>
+            <div><dt>Juros nos próximos 30 dias</dt><dd className="num">{tv(totais.juros30)}</dd></div>
+            {totais.aguardando > 0 && <div><dt>Aguardando aporte</dt><dd className="num">{tv(totais.aguardando)}</dd></div>}
           </dl>
-          {totais.temDolar && <CotacaoUsada cotacao={painel.data?.cotacao ?? null} />}
+          {(totais.temDolar || moedaVisao === "USD") && <CotacaoUsada cotacao={cotacao} />}
+          {moedaVisao === "USD" && (
+            <p className="cotacao-nota cotacao-nota--sem-selo">
+              Totais em dólar pela cotação acima. A rentabilidade é a de cada aplicação na moeda contratada; aplicações em real não têm variação cambial embutida.
+            </p>
+          )}
           {totais.semCotacao && <p className="aviso aviso--alerta">As aplicações em dólar ficaram fora dos totais em reais até a cotação ser registrada.</p>}
 
           <MinhasAplicacoes contratos={contratos} selecionado={atual?.id ?? null} onSelecionar={setSelecionado} />
